@@ -43,9 +43,9 @@ The experiments are defined in `experiments/`. Start Jupyter Notebooks (`jupyter
 
 Make sure you specify the correct path to the data. The data itself can be found here:
 
-- AC3: <http://www.openconnectomeproject.org/kasthuri11> Kasthuri et al.: Saturated reconstruction of a volume of neocortex. Cell (2015)
+- AC3: <http://www.openconnectomeproject.org/kasthuri11> _(Kasthuri et al. Saturated reconstruction of a volume of neocortex. Cell 2015.)_
 - CREMI: <http://www.cremi.org>
-- CYL: <http://www.openconnectomeproject.org/kasthuri11> Kasthuri et al.: Saturated reconstruction of a volume of neocortex. Cell (2015)
+- CYL: <http://www.openconnectomeproject.org/kasthuri11> _(Kasthuri et al. Saturated reconstruction of a volume of neocortex. Cell 2015.)_
 - MRI: This is an unpublished dataset. Once it's available we will link it here.
 
 ### Results for Cylinder
