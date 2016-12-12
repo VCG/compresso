@@ -2,7 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+PAPER/main.pdf
+PAPER/main.synctex.gz
 # C extensions
 *.so
 
@@ -87,3 +88,6 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# Texpad Stuff
+.texpadtmp
