@@ -1,8 +1,8 @@
 # Bockwurst: Efficient Compression of Segmentation Data For Connectomics
 
-![Segmentations](/experiments/figures/ac3_cyl.png?raw=true)
+![Segmentations](/experiments/figures/ac3_cyl_mri.png?raw=true)
 
-Recent advances in connectomics produce very large datasets with automatic labeling. The resulting segmentation volumes need compression for efficient storage and transfer. Such segmentation data consists of large low-frequency, high-bit regions with structured boundaries and is very different from conventional image data. As a result, general purpose compression tools do not properly exploit these characteristics. In this paper, we present Bockwurst, a new compression scheme for segmentation data that outperforms any existing method. Our method uses a sliding window approach to exploit redundancy across border regions in 2D and 3D. This enables efficient encoding of full segmentation volumes to a fraction of their original data size. We also study existing compression methods and provide a detailed evaluation on multiple connectomics datasets. To demonstrate generalizability, we include performance evaluation on a labeled brain MRI dataset.
+> Recent advances in connectomics produce very large datasets with automatic labeling. The resulting segmentation volumes need compression for efficient storage and transfer. Such segmentation data consists of large low-frequency, high-bit regions with structured boundaries and is very different from conventional image data. As a result, general purpose compression tools do not properly exploit these characteristics. In this paper, we present Bockwurst, a new compression scheme for segmentation data that outperforms any existing method. Our method uses a sliding window approach to exploit redundancy across border regions in 2D and 3D. This enables efficient encoding of full segmentation volumes to a fraction of their original data size. We also study existing compression methods and provide a detailed evaluation on multiple connectomics datasets. To demonstrate generalizability, we include performance evaluation on a labeled brain MRI dataset.
 
 ## Requirements
 
@@ -50,18 +50,14 @@ Make sure you specify the correct path to the data. The data itself can be found
 
 ### Results for Cylinder
 
-**Compression Rate**
+**Compression Performance**
 
-![Cylinder Compression Ratios](/experiments/figures/cyl_compression_ratios.png?raw=true)
+![Cylinder Compression Performance](/experiments/figures/cyl_performance.png?raw=true)
 
-**Compressed Bytes**
+While run-length encoding provides the fastest compression and decompression speed, Bockwurst in combination with LZ78 outperforms any other compression scheme.
 
-![Cylinder Compressed Bytes](/experiments/figures/cyl_compression_bytes.png?raw=true)
+**Encoding Performance**
 
-**Compression Speed (MB/s)**
+![Cylinder Compressed Bytes](/experiments/figures/cyl_encoding_performance.png?raw=true)
 
-![Cylinder Compression Speed](/experiments/figures/cyl_compression_total_comp_speed.png?raw=true)
-
-**Decompression Speed (MB/s)**
-
-![Cylinder Decompression Speed](/experiments/figures/cyl_compression_total_decomp_speed.png?raw=true)
+The same is true for encoding only. Here we distinguish between compression and encoding to highlight system requirements for random access, which is only available before compression.
