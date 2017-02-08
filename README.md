@@ -34,14 +34,34 @@ C.BOCKWURST.compress(<NUMPY-ARRAY>)
 
 ## Experiments
 
-The experiments are defined in `experiments/`. Start Jupyter Notebooks (`jupyter notebook`) and open either of the four options:
+```
+experiments/run.py BOCKWURST LZ78 ac3 -r 1 -s 1 -d '/<PATH>/<TO>/<DATA>' -b 
+```
 
-- AC3
-- CREMI
-- CYL
-- MRI
+Usage:
 
-Make sure you specify the correct path to the data. The data itself can be found here:
+```
+usage: run.py [-h] [--directory PATH] [--runs NUM] [--slices NUM]
+              [--bockwurst] [--verbose]
+              encoding compression dataset
+
+positional arguments:
+  encoding              name of encoding scheme
+  compression           name of compression scheme
+  dataset               name of data set
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --directory PATH, -d PATH
+                        path to data directory
+  --runs NUM, -r NUM    number of runs (default: 1)
+  --slices NUM, -s NUM  number of slices per dataset (default: -1 (all))
+  --bockwurst, -b       show me some bockwurst (default: False)
+  --verbose, -v         print progress (default: False) 
+```
+
+
+Make sure the data sets are located in `experiments/data` or specify the location. specify the correct path to the data. The data itself can be found here:
 
 - AC3: <http://www.openconnectomeproject.org/kasthuri11> _(Kasthuri et al. Saturated reconstruction of a volume of neocortex. Cell 2015.)_
 - CREMI: <http://www.cremi.org>

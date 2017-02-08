@@ -289,7 +289,6 @@ class Util(object):
             total_com_speed.append(t1 + t2)
             total_dcom_speed.append(t3 + t4)
 
-
         enc_MB = Util.get_size(compressed_data) / float(1000**2)
         dec_MB = Util.get_size(data) / float(1000**2)
 
@@ -334,12 +333,9 @@ class Util(object):
             print 'Decoding Speed [MB/s]:', denc_speed
             print ''
 
-        print original_data.shape, decompressed_data.shape
-
-
-        # assert np.array_equal(
-        #     original_data.flatten(), decompressed_data.flatten()
-        # )
+        assert np.array_equal(
+            original_data.flatten(), decompressed_data.flatten()
+        )
 
         return (
             compressed_data,
@@ -356,7 +352,7 @@ class Util(object):
     def run_experiments(
         data, N=100, com_alg=None, enc_alg=None, plot=False, verbose=False
     ):
-        data_bytes = [data.tobytes()]
+        data_bytes = []
         ratios = []
         # Compression times
         com_speed = []
@@ -407,7 +403,7 @@ class Util(object):
                         method_labels.append(enc.name())
                     else:
                         method_labels.append(
-                            com.name() + '\n with ' + enc.name()
+                            com.name() + ' with ' + enc.name()
                         )
 
         for com in com_alg:
@@ -424,7 +420,7 @@ class Util(object):
                 ):
                     if enc.name() is not 'NE':
                         continue
-                print data.shape, Util.DIM_CYL, com.name()
+
                 if com.name() == 'Zlib' and data.shape[0] == Util.DIM_CYL[0]:
                     print '=================================================='
                     print 'WARNING! ONLY 50 SLICES ARE GIVEN TO ZLIB'
@@ -441,7 +437,7 @@ class Util(object):
                     verbose=verbose
                 )
 
-                data_bytes.append(b)
+                data_bytes.append(Util.get_size(b))
                 ratios.append(r)
                 com_speed.append(np.mean(ct))
                 com_speed_stderr.append(np.std(ct))
@@ -470,7 +466,8 @@ class Util(object):
 
         return {
             'methods': method_labels,
-            'bytes': data_bytes,
+            'orig_bytes': Util.get_size(data),
+            'comp_bytes': data_bytes,
             'ratios': ratios,
             'comp_speed': com_speed,
             'comp_speed_std': com_speed_stderr,
