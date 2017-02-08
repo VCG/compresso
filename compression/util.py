@@ -253,6 +253,9 @@ class Util(object):
         *args / **kwargs = settings for the compression method, e.g. `9`
         '''
 
+        # To run the assertion test only once
+        sanity_check = False
+
         enc_speed = []
         denc_speed = []
 
@@ -333,9 +336,11 @@ class Util(object):
             print 'Decoding Speed [MB/s]:', denc_speed
             print ''
 
-        assert np.array_equal(
-            original_data.flatten(), decompressed_data.flatten()
-        )
+        if not sanity_check:
+            assert np.array_equal(
+                original_data.flatten(), decompressed_data.flatten()
+            )
+            sanity_check = True
 
         return (
             compressed_data,
