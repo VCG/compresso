@@ -15,12 +15,22 @@ def run_experiments(
 ):
     try:
         enc_alg = getattr(C, enc_name)
+
+        # This is a stupid test to ensure that the correct encoder has been
+        # found, which is needed since we have uppercase module imports and
+        # lowercase filenames
+        enc_alg.name()
     except Exception:
         print 'Encoding scheme not found. Try BOCKWURST!'
         sys.exit()
 
     try:
         com_alg = getattr(C, com_name)
+
+        # This is a stupid test to ensure that the correct compressor has been
+        # found, which is needed since we have uppercase module imports and
+        # lowercase filenames
+        com_alg.name()
     except Exception:
         print 'Encoding scheme not found. Try LZ78!'
         sys.exit()
