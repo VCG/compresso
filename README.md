@@ -1,4 +1,4 @@
-# Bockwurst: Efficient Compression of Segmentation Data For Connectomics
+# Compresso: Efficient Compression of Segmentation Data For Connectomics
 
 ![Segmentations](/banner.png?raw=true)
 
