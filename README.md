@@ -2,7 +2,7 @@
 
 ![Segmentations](/banner.png?raw=true)
 
-> Recent advances in connectomics produce very large datasets with automatic labeling. The resulting segmentation volumes need compression for efficient storage and transfer. Such segmentation data consists of large low-frequency, high-bit regions with structured boundaries and is very different from conventional image data. As a result, general purpose compression tools do not properly exploit these characteristics. In this paper, we present Bockwurst, a new compression scheme for segmentation data that outperforms any existing method. Our method uses a sliding window approach to exploit redundancy across border regions in 2D and 3D. This enables efficient encoding of full segmentation volumes to a fraction of their original data size. We also study existing compression methods and provide a detailed evaluation on multiple connectomics datasets. To demonstrate generalizability, we include performance evaluation on a labeled brain MRI dataset.
+> Recent advances in connectomics produce very large datasets with automatic labeling. The resulting segmentation volumes need compression for efficient storage and transfer. Such segmentation data consists of large low-frequency, high-bit regions with structured boundaries and is very different from conventional image data. As a result, general purpose compression tools do not properly exploit these characteristics. In this paper, we present Compresso, a new compression scheme for segmentation data that outperforms any existing method. Our method uses a sliding window approach to exploit redundancy across border regions in 2D and 3D. This enables efficient encoding of full segmentation volumes to a fraction of their original data size. We also study existing compression methods and provide a detailed evaluation on multiple connectomics datasets. To demonstrate generalizability, we include performance evaluation on a labeled brain MRI dataset.
 
 ## Requirements
 
@@ -13,14 +13,14 @@
 ## Setup
 
 ```bash
-git clone https://github.com/rhoana/bockwurst && cd bockwurst
+git clone https://github.com/rhoana/compresso && cd compresso
 mkvirtualenv -a $(pwd) bockwurst
 pip install -r requirements.txt
 ```
 
 ## Compress Your Segmentation Stack
 
-In order to test Bockwurst on your own data simply use
+In order to test Compresso on your own data simply use
 
 ```
 import compression as C
@@ -74,7 +74,7 @@ Make sure the data sets are located in `experiments/data` or specify the locatio
 
 ![Cylinder Compression Performance](/experiments/figures/cyl_performance.png?raw=true)
 
-While run-length encoding provides the fastest compression and decompression speed, Bockwurst in combination with LZ78 outperforms any other compression scheme.
+While run-length encoding provides the fastest compression and decompression speed, Comopresso in combination with LZ78 outperforms any other compression scheme.
 
 **Encoding Performance**
 
