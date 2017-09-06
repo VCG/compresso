@@ -30,6 +30,7 @@ In order to test Compresso on your own data simply use
 
 ```
 import compression as C
+```
 
 # With LZMA
 C.LZMA.compress(C.COMPRESSO(<NUMPY-ARRAY>, compress=False))
