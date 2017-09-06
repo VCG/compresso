@@ -9,6 +9,8 @@
 
 > Recent advances in connectomics produce very large datasets with automatic labeling. The resulting segmentation volumes need compression for efficient storage and transfer. Such segmentation data consists of large low-frequency, high-bit regions with structured boundaries and is very different from conventional image data. As a result, general purpose compression tools do not properly exploit these characteristics. In this paper, we present Compresso, a new compression scheme for segmentation data that outperforms any existing method. Our method uses a sliding window approach to exploit redundancy across border regions in 2D and 3D. This enables efficient encoding of full segmentation volumes to a fraction of their original data size. We also study existing compression methods and provide a detailed evaluation on multiple connectomics datasets. To demonstrate generalizability, we include performance evaluation on a labeled brain MRI dataset.
 
+**Paper**: Matejek _et al._, "Compresso: Efficient Compression of Segmentation Data For Connectomics", Proceedings of the International Conference on Medical Image Computing and Computer-Assisted Intervention (MICCAI), 2017, 10-14. \[[CITE](https://scholar.google.com/scholar?q=Compresso%3A+Efficient+Compression+of+Segmentation+Data+For+Connectomics) | [PDF](https://vcg.seas.harvard.edu/publications/compresso-efficient-compression-of-segmentation-data-for-connectomics/paper)\]
+
 ## Requirements
 
 - Python 2.7
