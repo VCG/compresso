@@ -1,21 +1,17 @@
 from numba import jit
 from skimage import measure
-import backports.lzma as lzma
+#import backports.lzma as lzma
 import numpy as np
 import itertools
 import math
-
-
-
-
-
-
+import time
 
 
 
 # global parameters
 
 fill_background = False
+create_figures = False
 
 
 
@@ -115,6 +111,166 @@ def ValueMapping(boundary_data):
     values, noccurrences = np.unique(boundary_data, return_counts=True) 
     mapping = {}
 
+    print len(values)
+    counter = 0
+    for ie, (occurrence, value) in enumerate(sorted(zip(noccurrences, values), reverse=True)):
+        if (ie == 50): break
+        counter += occurrence
+    print counter / float(boundary_data.size)
+
+    if create_figures:
+        iteration = 7
+
+        # sample window size
+        window_size = 8
+        nwindows = 100
+        nfake_windows = 5
+
+        # expand the array
+        expansion_factor = 5
+        expanded_window = expansion_factor * window_size
+
+        # buffer information
+        window_buffer = 10
+        boundary_color = 255
+        ring_size = 1
+        ring_color = 0
+        shadow = False
+        assert (ring_size <= window_buffer)
+
+        # padding information
+        image_padding_size = 4
+        background_color = 0
+
+        # final shape
+        (nrows, ncols) = (5, 20)
+        assert (nrows * ncols == nwindows)
+        assert (nrows == nfake_windows)
+
+        # keep track of the number of occurrences
+        occurrence_count = 0
+
+        # iterate over all of the images
+        frequent_vw = np.zeros((nwindows, window_size, window_size), dtype=np.uint8)
+        for ie, (occurrence, value) in enumerate(sorted(zip(noccurrences, values), reverse=True)):
+            image = np.zeros((window_size, window_size), dtype=np.uint8)
+
+            for i in range(window_size):
+                for j in range(window_size):
+                    image[i,j] = value % 2
+                    value = long(value) >> 1
+
+            frequent_vw[ie,:,:] = image
+
+            # only include top 100 windows
+            if (ie == nwindows - 1): break
+
+            # update the number of occurrences
+            occurrence_count += occurrence
+
+        # create fake windows
+
+        # generate random window values
+        import random
+
+        infrequent_vw = np.zeros((nfake_windows, window_size, window_size), dtype=np.uint8)
+        for ie in range(nfake_windows):
+            image = np.zeros((window_size, window_size), dtype=np.uint8)
+
+            # get an entirely random window value
+            value = random.randint(0, 2**(window_size * window_size))
+
+            for i in range(window_size):
+                for j in range(window_size):
+                    image[i,j] = value % 2
+                    value = long(value) >> 1
+
+            infrequent_vw[ie,:,:] = image
+
+        # expand the frequent vws
+        frequent_vw_expanded = np.zeros((nwindows, expanded_window, expanded_window))
+        infrequent_vw_expanded = np.zeros((nfake_windows, expanded_window, expanded_window))
+
+        for iz in range(nwindows):
+            for iy in range(expanded_window):
+                for ix in range(expanded_window):
+                   ij = iy / expansion_factor
+                   ii = ix / expansion_factor
+                   frequent_vw_expanded[iz,iy,ix] = frequent_vw[iz,ij,ii] 
+
+        for iz in range(nfake_windows):
+            for iy in range(expanded_window):
+                for ix in range(expanded_window):
+                    ij = iy / expansion_factor
+                    ii = ix / expansion_factor
+                    infrequent_vw_expanded[iz,iy,ix] = infrequent_vw[iz,ij,ii]
+
+        frequent_vw_expanded = np.reshape(frequent_vw_expanded, (nrows, ncols, expanded_window, expanded_window))
+
+        # create the output image
+        total_columns = ncols + 3
+        height = nrows * expanded_window + window_buffer * (nrows + 1)
+        width = total_columns * expanded_window + window_buffer * (total_columns + 1)
+
+        # boundary color between [0, 255)
+        image = np.zeros((height, width), dtype=np.uint8) + boundary_color
+
+        # add in the white region between the frequent and infrequent windows
+        for ix in range(ncols * expanded_window + window_buffer * (ncols + 1), (ncols + 2) * expanded_window + window_buffer * (ncols + 2)):
+            for iy in range(height):
+                image[iy,ix] = 255
+
+        # add in the true windows
+        for iy in range(frequent_vw_expanded.shape[0]):
+            for ix in range(frequent_vw_expanded.shape[1]):
+                xcorner = ix * (expanded_window + window_buffer) + window_buffer
+                ycorner = iy * (expanded_window + window_buffer) + window_buffer
+
+                # add the ring around the image
+                if shadow:
+                    for ij in range(ycorner - ring_size, ycorner + expanded_window):
+                        for ii in range(xcorner - ring_size, xcorner + expanded_window):
+                            image[ij,ii] = ring_color
+
+                else:
+                    for ij in range(ycorner - ring_size, ycorner + expanded_window + ring_size):
+                        for ii in range(xcorner - ring_size, xcorner + expanded_window + ring_size):
+                            image[ij,ii] = ring_color
+
+                image[ycorner:ycorner+expanded_window, xcorner:xcorner+expanded_window] = 255 * (1 - frequent_vw_expanded[iy,ix,:,:])
+
+
+        xcorner = (ncols + 2) * (expanded_window + window_buffer) + window_buffer
+        for iy in range(nfake_windows):
+            ycorner = iy * (expanded_window + window_buffer) + window_buffer
+            
+            # add the ring around the image
+            if shadow:
+                for ij in range(ycorner - ring_size, ycorner + expanded_window):
+                    for ii in range(xcorner - ring_size, xcorner + expanded_window):
+                        image[ij,ii] = ring_color
+
+            else:
+                for ij in range(ycorner - ring_size, ycorner + expanded_window + ring_size):
+                    for ii in range(xcorner - ring_size, xcorner + expanded_window + ring_size):
+                        image[ij,ii] = ring_color
+
+            image[ycorner:ycorner+expanded_window, xcorner:xcorner+expanded_window] = 255 * (1 - infrequent_vw_expanded[iy,:,:])
+
+        # pad the image in white
+        padded_image = np.ones((image.shape[0] + 2 * image_padding_size, image.shape[1] + 2 * image_padding_size), dtype=np.uint8) * 255
+        padded_image[image_padding_size:-image_padding_size, image_padding_size:-image_padding_size] = image
+
+        # save the image
+        from  PIL import Image
+        im = Image.fromarray(padded_image)
+        im.save('window_values' + str(iteration) + '.bmp')
+
+        np.save('/tmp/i.npy', padded_image)
+
+        import sys
+        sys.exit()
+
     for iv, value in enumerate(values):
         mapping[value] = iv
 
@@ -207,7 +363,7 @@ def DecodeBoundaries(boundary_data, values, zres, yres, xres, zstep, ystep, xste
                     for iv in range(iy, iy + ystep):
                         if (iv > yres - 1): continue
                         for iu in range(ix, ix + xstep):
-                            if (ix > xres - 1): continue
+                            if (iu > xres - 1): continue
                             
                             # get the current bit
                             bit = (value % 2 == 1)
@@ -343,9 +499,6 @@ def FindIndeterminateLocations(boundaries, segmentation):
             else:
                 locations.append(segmentation[iz,iy,ix] + 6)
 
-            # update the boundary matrix
-            boundaries[iz,iy,ix] = 0
-
     # return the list of locations
     return np.array(locations, dtype=np.uint64)
 
@@ -413,20 +566,49 @@ class boundary_encoding(object):
 
 
     @staticmethod
-    def compress(data, compress=False):
+    def compress(data):
         '''Boundary Encoding compression
         '''
 
         # size of window for boundary encoding
         steps = (1, 8, 8)
+        (zres, yres, xres) = data.shape
 
+
+        from matplotlib import pyplot as plt 
+
+        plt.imshow(data[0,:,:])
+        plt.savefig('segmentation.png')
+
+        print '---------------------------------------------------'
         # get the boundary image
+        start_time = time.time()
         segmentation, boundaries = ExtractBoundaries(data, fill_background)
+        print 'Extract Boundaries: ' + str(time.time() - start_time)
+
+        print np.unique(data[0,300:428,300:428])
+
+        from  PIL import Image
+        im = Image.fromarray(255 - 255 * boundaries[0,300:428,300:428])
+        im.save('boundaries.png')
+
+        #np.save('/tmp/i.npy', padded_image)
+
+        start_time = time.time()
         components = ConnectedComponents(boundaries)
+        print 'Connected Components: ' + str(time.time() - start_time)
+        start_time = time.time()
         ids = IDMapping(components, segmentation)
+        print 'ID Mapping: ' + str(time.time() - start_time)
+        start_time = time.time()
         boundary_data = EncodeBoundaries(boundaries, steps)
+        print 'Encode Boundaries: ' + str(time.time() - start_time)
+        start_time = time.time()
         values, boundary_data = ValueMapping(boundary_data)
+        print 'Value mapping: ' + str(time.time() - start_time)
+        start_time = time.time()
         locations = FindIndeterminateLocations(boundaries, segmentation)
+        print 'Indeterminate Locations: ' + str(time.time() - start_time)
 
         # get additional header information
         (zres, yres, xres) = boundaries.shape
@@ -438,44 +620,16 @@ class boundary_encoding(object):
         header[1] = yres
         header[2] = xres
 
+        header[3] = ids.size
+        header[4] = values.size
+        header[5] = locations.size
+
         header[6] = zstep
         header[7] = ystep
         header[8] = xstep
 
-        if (not compress):
+        return np.concatenate((header, ids, values, locations, boundary_data))
 
-            header[3] = ids.size
-            header[4] = values.size
-            header[5] = locations.size
-
-            return np.concatenate((header, ids, values, locations, boundary_data))
-
-        # update the size of the boundary data
-        if (len(values) <= 2**8):
-            boundary_data = boundary_data.astype(np.uint8)
-        elif (len(values) <= 2**16):
-            boundary_data = boundary_data.astype(np.uint16)
-        elif (len(values) <= 2**32):
-            boundary_data = boundary_data.astype(np.uint32)
-
-        # compress values and boundary data
-        compressed_ids = lzma.compress(ids.tobytes())
-        compressed_values = lzma.compress(values.tobytes())
-        compressed_boundaries = lzma.compress(boundary_data.tobytes())
-        compressed_locations = lzma.compress(locations.tobytes())
-
-        header[3] = len(compressed_ids)
-        header[4] = len(compressed_values)
-        header[5] = len(compressed_locations)
-
-        # send the header to bytes
-        compressed_header = header.tobytes()
-
-        # concatenate all of the comrpessed information
-        compressed_data = compressed_header + compressed_ids + compressed_values + compressed_locations + compressed_boundaries
-
-        # return the compressed data
-        return compressed_data
 
     @staticmethod
     def decompress(data, compress=False):
@@ -486,75 +640,35 @@ class boundary_encoding(object):
         byte_size = 8
         header_size = 9
 
-        if not compress:
-            header = data[0:header_size]
-            data = data[header_size:]
+        header = data[0:header_size]
+        data = data[header_size:]
 
-            # get information regarding locations
-            zres, yres, xres = (int(header[0]), int(header[1]), int(header[2]))
-            ids_size, values_size, locations_size = (int(header[3]), int(header[4]), int(header[5]))
-            zstep, ystep, xstep = (int(header[6]), int(header[7]), int(header[8]))
+        # get information regarding locations
+        zres, yres, xres = (int(header[0]), int(header[1]), int(header[2]))
+        ids_size, values_size, locations_size = (int(header[3]), int(header[4]), int(header[5]))
+        zstep, ystep, xstep = (int(header[6]), int(header[7]), int(header[8]))
 
-            ids = data[0:ids_size]
-            data = data[ids_size:]
-            values = data[0:values_size]
-            data = data[values_size:]
-            locations = data[0:locations_size]
-            data = data[locations_size:]
-            boundary_data = data[0:]
+        ids = data[0:ids_size]
+        data = data[ids_size:]
+        values = data[0:values_size]
+        data = data[values_size:]
+        locations = data[0:locations_size]
+        data = data[locations_size:]
+        boundary_data = data[0:]
 
-        else:
-            # extract the header
-            header_string = data[0:header_size*byte_size]
-            header = np.fromstring(header_string, dtype=np.uint64)
-
-            # get information regarding locations
-            zres, yres, xres = (int(header[0]), int(header[1]), int(header[2]))
-            ids_length, values_length, locations_length = (int(header[3]), int(header[4]), int(header[5]))
-            zstep, ystep, xstep = (int(header[6]), int(header[7]), int(header[8]))
-
-            # remove the header
-            data = data[header_size*byte_size:]
-
-            # retrieve all of the ids
-            ids_string = data[0:ids_length]
-            ids_string = lzma.decompress(ids_string)#, lzma.FORMAT_RAW, filters=lzma_filters)
-            ids = np.fromstring(ids_string, dtype=np.uint64)
-
-            # remove the ids
-            data = data[ids_length:]
-
-            # retrieve all of the values
-            values_string = data[0:values_length]
-            values_string = lzma.decompress(values_string)#, lzma.FORMAT_RAW, filters=lzma_filters)
-            values = np.fromstring(values_string, dtype=np.uint64)
-
-            # remove the values
-            data = data[values_length:]
-
-            # retrieve all the locations
-            locations_string = data[0:locations_length]
-            locations_string = lzma.decompress(locations_string)#, lzma.FORMAT_RAW, filters=lzma_filters)
-            locations = np.fromstring(locations_string, dtype=np.uint64)
-
-            # remove the locations
-            data = data[locations_length:]
-     
-            # retrieve all of the boundary encodings
-            boundary_string = data[:]
-            boundary_string = lzma.decompress(boundary_string)#, lzma.FORMAT_RAW, filters=lzma_filters)
-            if (len(values) < 2**8):
-                boundary_data = np.fromstring(boundary_string, dtype=np.uint8)
-            elif (len(values) < 2**16):
-                boundary_data = np.fromstring(boundary_string, dtype=np.uint16)
-            elif (len(values) < 2**32):
-                boundary_data = np.fromstring(boundary_string, dtype=np.uint32)
-            else:
-                boundary_data = np.fromstring(boundary_string, dtype=np.uint64)
-
+        start_time = time.time()
         boundaries = DecodeBoundaries(boundary_data, values, zres, yres, xres, zstep, ystep, xstep)
+        print 'Decoding boundaries: ' + str(time.time() - start_time)
+
+        start_time = time.time()
         components = ConnectedComponents(boundaries)
+        print 'Finding connected components: ' + str(time.time() - start_time)
+        start_time = time.time()
         decompressed_data = IDReverseMapping(components, ids)
+        print 'Reverse mapping: ' + str(time.time() - start_time)
+        start_time = time.time()
         decompressed_data = DecodeBoundaryLocations(decompressed_data, boundaries, locations)
+        print 'Decoding Indeterminate Locations: ' + str(time.time() - start_time)
+        print '---------------------------------------------------'
 
         return decompressed_data

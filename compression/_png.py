@@ -5,7 +5,7 @@ import png
 import tempfile
 
 
-class png_compress(object):
+class _png(object):
 
     @staticmethod
     def name():

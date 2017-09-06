@@ -1,11 +1,9 @@
 from numba import jit
 from skimage import measure
-import backports.lzma as lzma
+#import backports.lzma as lzma
 import numpy as np
 import itertools
 import math
-
-
 
 
 # global parameters
@@ -111,11 +109,6 @@ def EncodeBoundaries(boundaries, steps):
 
     # get the step values in easier format
     (zstep, ystep, xstep) = steps
-  
-    assert (zres % zstep == 0)
-    assert (yres % ystep == 0)
-    assert (xres % xstep == 0)
-    #assert ((zstep * ystep * xstep) % 8 == 0)
 
     window_values = list()
     values = set()
@@ -124,19 +117,26 @@ def EncodeBoundaries(boundaries, steps):
     for iz in range(0, zres, zstep):
         for iy in range(0, yres, ystep):
             for ix in range(0, xres, xstep):
-                # retrieve the window
-                window = boundaries[iz:iz+zstep,iy:iy+ystep,ix:ix+xstep]
+                # enoded value
+                encoding = 0
 
-                # flatten the window
-                window = window.flatten(order='C')
+                # go through the entire block
+                ii = 0
+                for iw in range(iz, iz + zstep):
+                    if (iw > zres - 1): continue
+                    for iv in range(iy, iy + ystep):
+                        if (iv > yres - 1): continue
+                        for iu in range(ix, ix + xstep):
+                            if (iu > xres - 1): continue
 
-                # generate the value for this window
-                value = 0
-                for ib, bit in enumerate(window):
-                    if (bit): value += (2**ib)
+                            # does this location contribute to the boundary
+                            if (boundaries[iw,iv,iu]): encoding += 2**ii
 
-                window_values.append(value)
-                values.add(value)
+                            # increment the index
+                            ii += 1
+
+                window_values.append(encoding)
+                values.add(encoding)
 
     # calculate the mapping for all values
     values = list(sorted(values))
@@ -149,11 +149,7 @@ def EncodeBoundaries(boundaries, steps):
     max_value = values[N - 1]
 
     # encode the boundaries with the new values
-    if (N < 2**8):
-        dtype=np.uint8
-    elif (N < 2**16):
-        dtype=np.uint16
-    elif (N < 2**32):
+    if (N < 2**32):
         dtype=np.uint32
     elif (N < 2**64):
         dtype=np.uint64
@@ -169,7 +165,7 @@ def EncodeBoundaries(boundaries, steps):
         boundary_data[iw] = mapping[value]
 
     # create the value encoding
-    nbytes_per_value = int(math.ceil(math.log(max_value, 2) / 8) + 0.5)
+    nbytes_per_value = int(math.ceil(math.log(max_value + 1, 2) / 8) + 0.5)
 
     # encode the values in a byte array
     np_values = np.zeros(nbytes_per_value * N, dtype=np.uint8)
@@ -212,20 +208,27 @@ def DecodeBoundaries(boundary_data, values, zres, yres, xres, zstep, ystep, xste
     for iz in range(0, zres, zstep):
         for iy in range(0, yres, ystep):
             for ix in range(0, xres, xstep):
-                value = mapping[boundary_data[index]]
-
-                # create an empty window
-                window = np.zeros(window_size, dtype=np.uint8)
+                # get the encoded value
+                encoding = mapping[boundary_data[index]]
 
                 # decode the value
-                for ib in range(0, window_size):
-                    window[ib] = (value % 2)
-                    value = value >> 1
+                for iw in range(iz, iz + zstep):
+                    if (iw > zres - 1): continue
+                    for iv in range(iy, iy + ystep):
+                        if (iv > yres - 1): continue
+                        for iu in range(ix, ix + xstep):
+                            if (iu > xres - 1): continue
+                            
+                            # get the current bit
+                            bit = (encoding % 2 == 1)
 
-                window = window.reshape((zstep, ystep, xstep), order='C')
+                            # determine if there is a boundary
+                            if (bit): boundaries[iw,iv,iu] = 1
 
-                boundaries[iz:iz+zstep,iy:iy+ystep,ix:ix+xstep] = window
+                            # shift over the value
+                            encoding = encoding >> 1
 
+                # update the current index
                 index += 1
 
     # return the boundaries
@@ -419,12 +422,12 @@ class variable_encoding(object):
 
 
     @staticmethod
-    def compress(data, compress=False):
+    def compress(data, steps):
         '''Boundary Encoding compression
         '''
-
-        # size of window for boundary encoding
-        steps = (1, 8, 8)
+        # get additional header information
+        (zres, yres, xres) = data.shape
+        (zstep, ystep, xstep) = steps
 
         # get the boundary image
         segmentation, boundaries = ExtractBoundaries(data, fill_background)
@@ -433,12 +436,10 @@ class variable_encoding(object):
         boundary_data, values, nbytes_per_value = EncodeBoundaries(boundaries, steps)
         locations = FindIndeterminateLocations(boundaries, segmentation)
 
-        # get additional header information
-        (zres, yres, xres) = boundaries.shape
-        (zstep, ystep, xstep) = steps
 
         # construct the header
-        header = np.zeros(10, dtype=np.uint64)
+        header = np.zeros(11, dtype=np.uint64)
+
         header[0] = zres
         header[1] = yres
         header[2] = xres
@@ -450,20 +451,47 @@ class variable_encoding(object):
         header[8] = xstep
         header[9] = nbytes_per_value
 
-        return np.concatenate((header, ids, values, locations, boundary_data))
+        if (boundary_data.dtype == np.uint8):
+            header[10] = 8
+        elif (boundary_data.dtype == np.uint16):
+            header[10] = 16
+        elif (boundary_data.dtype == np.uint32):
+            header[10] = 32
+        elif (boundary_data.dtype == np.uint64):
+            header[10] = 64
+
+        condensed_blocks = list()
+        inzero = False
+        prev_zero = 0
+        for ie, block in enumerate(boundary_data):
+            if block == 0:
+                # start counting zeros
+                if not inzero:
+                    inzero = True
+                    prev_zero = ie
+            else:
+                if inzero:
+                    # add information for the previous zero segment
+                    condensed_blocks.append((ie - prev_zero) * 2 + 1)
+                    inzero = False
+                condensed_blocks.append(block * 2)
+
+        condensed_blocks = np.array(condensed_blocks).astype(boundary_data.dtype)
+
+        return np.concatenate((header, ids, values, locations)).tobytes() + condensed_blocks.tobytes()
 
 
     @staticmethod
-    def decompress(data):
+    def decompress(data, steps):
         '''Boundary Decoding decompression
         '''
 
         # constants
-        byte_size = 8
-        header_size = 10
+        uint64_size = 8
+        header_size = 11
 
-        header = data[0:header_size]
-        data = data[header_size:]
+        header = np.fromstring(data[0:header_size*uint64_size], dtype=np.uint64)
+        data = data[header_size*uint64_size:]
 
         # get information regarding locations
         zres, yres, xres = (int(header[0]), int(header[1]), int(header[2]))
@@ -471,13 +499,39 @@ class variable_encoding(object):
         zstep, ystep, xstep = (int(header[6]), int(header[7]), int(header[8]))
         nbytes_per_value = int(header[9])
 
-        ids = data[0:ids_size]
-        data = data[ids_size:]
-        values = data[0:values_size]
-        data = data[values_size:]
-        locations = data[0:locations_size]
-        data = data[locations_size:]
-        boundary_data = data[0:]
+        ids = np.fromstring(data[0:ids_size*uint64_size], dtype=np.uint64)
+        data = data[ids_size*uint64_size:]
+        values = np.fromstring(data[0:values_size*uint64_size], dtype=np.uint64)
+        data = data[values_size*uint64_size:]
+        locations = np.fromstring(data[0:locations_size*uint64_size], dtype=np.uint64)
+        data = data[locations_size*uint64_size:]
+
+        # populate the boundary data
+        data_type = header[10]
+        if (data_type == 8):
+            boundary_dtype = np.uint8
+        elif (data_type == 16):
+            boundary_dtype = np.uint16
+        elif (data_type == 32):
+            boundary_dtype = np.uint32
+        else:
+            boundary_dtype = np.uint64
+
+        # get the compressed blocks
+        nblocks = int(math.ceil(float(zres) / zstep)) * int(math.ceil(float(yres) / ystep)) * int(math.ceil(float(xres) / xstep))
+        condensed_blocks = np.fromstring(data, dtype=boundary_dtype)
+        boundary_data = np.zeros(nblocks, dtype=boundary_dtype)
+
+        index = 0
+        for block in condensed_blocks:
+            # greater values correspond to zero blocks
+            if block % 2:
+                nzeros = (block  - 1) / 2
+                boundary_data[index:index+nzeros] = 0
+                index += nzeros
+            else:
+                boundary_data[index] = block / 2
+                index += 1
 
         boundaries = DecodeBoundaries(boundary_data, values, zres, yres, xres, zstep, ystep, xstep, nbytes_per_value)
         components = ConnectedComponents(boundaries)

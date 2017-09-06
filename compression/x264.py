@@ -4,7 +4,7 @@ from PIL import Image
 from subprocess import Popen, PIPE
 import tempfile
 
-class x264_compress(object):
+class x264(object):
 
     @staticmethod
     def name():
@@ -37,11 +37,9 @@ class x264_compress(object):
                    '-crf', '0',
                    '-preset:v', 'slow',
                    outvideo], stdin=PIPE, stdout=process_output, stderr=process_output)
-          
-
+        
         for z in range(data.shape[0]):
-            
-            Util.convert_to_rgb(data[z]).tofile(p.stdin)
+          Util.convert_to_rgb(data[z]).tofile(p.stdin)
 
         process_output.close()
         p.stdin.close()
