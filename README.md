@@ -13,16 +13,26 @@
 ## Requirements
 
 - Python 2.7
-- PIP
-- virtualenv with virtualenvwrapper
+- conda
 
 ## Setup
 
 ```bash
 git clone https://github.com/vcg/compresso && cd compresso
-mkvirtualenv -a $(pwd) compresso
-pip install -r requirements.txt
+conda create -n compresso_env --file requirements.txt
+# for Compresso scheme as presented in MICCAI
+cd experiments/compression/compresso; python setup.py build_ext --inplace
+# to run the neuroglancer compression scheme
+cd ../neuroglancer; python setup.py build_ext --inplace
+# for Compresso v2 that is under development
+cd ../../src/python; python setup.py build_ext --inplace
 ```
+
+## Compress Segmentation Stacks
+
+There are two versions of Compresso in this repository. Under the src folder there is an updated c++ and python version that extends on the Compresso scheme presented in MICCAI. This algorithm, among other things, implements bit-packing to further improve compression results.
+
+The compression scheme in experiments/compression/compresso follows the MICCAI paper exactly. 
 
 ## Compress Your Segmentation Stack
 
@@ -33,12 +43,13 @@ import compression as C
 ```
 
 # With LZMA
-C.LZMA.compress(C.COMPRESSO(<NUMPY-ARRAY>, compress=False))
+C.LZMA.compress(C.COMPRESSO(<NUMPY-ARRAY>))
 
 ## Experiments
 
 ```
-experiments/run.py COMPRESSO LZMA ac3 -r 1 -s 1 -d '/<PATH>/<TO>/<DATA>' -b 
+# the dataset must be in hdf5 format.
+experiments/run.py COMPRESSO LZMA ac3 -r 1 -s 1 -d '/<PATH>/<TO>/<DATA>'
 ```
 
 Usage:
@@ -76,4 +87,4 @@ Make sure the data sets are located in `experiments/data` or specify the locatio
 
 ![Compression Performance of Connectomics Datasets](/experiments/figures/compression-performance.png?raw=true)
 
-Compression ratios of general-purpose compression methods combined with Compresso and Neuroglancer. Compresso paired with LZMA yields the best compres- sion ratios for all connectomics datasets (left) and in average (four out of five) for the others (right).
+Compression ratios of general-purpose compression methods combined with Compresso and Neuroglancer. Compresso paired with LZMA yields the best compression ratios for all connectomics datasets (left) and in average (four out of five) for the others (right).
