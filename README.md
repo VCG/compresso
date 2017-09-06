@@ -73,16 +73,10 @@ Make sure the data sets are located in `experiments/data` or specify the locatio
 - CYL: <http://www.openconnectomeproject.org/kasthuri11> _(Kasthuri et al. Saturated reconstruction of a volume of neocortex. Cell 2015.)_
 - MRI: This is an unpublished dataset. Once it's available we will link it here.
 
-### Results for Cylinder
+### Results From the Paper
 
 **Compression Performance**
 
-![Cylinder Compression Performance](/experiments/figures/cyl_performance.png?raw=true)
+![Compression Performance of Connectomics Datasets](/experiments/figures/compression-performance.png?raw=true)
 
-While run-length encoding provides the fastest compression and decompression speed, Comopresso in combination with LZ78 outperforms any other compression scheme.
-
-**Encoding Performance**
-
-![Cylinder Compressed Bytes](/experiments/figures/cyl_encoding_performance.png?raw=true)
-
-The same is true for encoding only. Here we distinguish between compression and encoding to highlight system requirements for random access, which is only available before compression.
+Compression ratios of general-purpose compression methods combined with Compresso and Neuroglancer. Compresso paired with LZMA yields the best compres- sion ratios for all connectomics datasets (left) and in average (four out of five) for the others (right).
