@@ -1,5 +1,10 @@
 # Compresso: Efficient Compression of Segmentation Data For Connectomics
 
+[![Paper](https://img.shields.io/badge/paper-accepted-red.svg?colorB=f52ef0)](https://vcg.seas.harvard.edu/publications/compresso-efficient-compression-of-segmentation-data-for-connectomics)
+[![MICCAI](https://img.shields.io/badge/presentation-MICCAI%202017-red.svg?colorB=135f89)](http://www.miccai2017.org/schedule)
+[![doi](https://img.shields.io/badge/used%20by-rhoana-red.svg?colorB=2bf55b)](http://www.rhoana.org)
+[![Bockwurst](https://img.shields.io/badge/bockwurst-tasty-red.svg?colorB=ff9f3a)](#compress-your-segmentation-stack)
+
 ![Segmentations](/banner.png?raw=true)
 
 > Recent advances in connectomics produce very large datasets with automatic labeling. The resulting segmentation volumes need compression for efficient storage and transfer. Such segmentation data consists of large low-frequency, high-bit regions with structured boundaries and is very different from conventional image data. As a result, general purpose compression tools do not properly exploit these characteristics. In this paper, we present Compresso, a new compression scheme for segmentation data that outperforms any existing method. Our method uses a sliding window approach to exploit redundancy across border regions in 2D and 3D. This enables efficient encoding of full segmentation volumes to a fraction of their original data size. We also study existing compression methods and provide a detailed evaluation on multiple connectomics datasets. To demonstrate generalizability, we include performance evaluation on a labeled brain MRI dataset.
