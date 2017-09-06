@@ -21,7 +21,7 @@ def run_experiments(
         # lowercase filenames
         enc_alg.name()
     except Exception:
-        print 'Encoding scheme not found. Try BOCKWURST!'
+        print 'Encoding scheme not found!'
         sys.exit()
 
     try:
@@ -32,16 +32,16 @@ def run_experiments(
         # lowercase filenames
         com_alg.name()
     except Exception:
-        print 'Encoding scheme not found. Try LZ78!'
+        print 'Encoding scheme not found!'
         sys.exit()
 
     data = C.Util.load_data(dataset, slices, data_loc)
 
-    results = C.Util.run_experiments(
+    results = C.Util.run_experiment(
+        com=com_alg,
+        enc=enc_alg,
         data=data,
         N=N,
-        com_alg=[com_alg],
-        enc_alg=[enc_alg],
         verbose=verbose
     )
 
@@ -59,8 +59,9 @@ def run_experiments(
 
     print(results)
 
-    with open(os.path.join(res, filename), 'wb') as f:
-        pickle.dump(results, f)
+    with open(os.path.join(res, filename), 'w') as f:
+        for result in results:
+            f.write('{}: {}\n'.format(result, results[result]))
 
 
 if __name__ == '__main__':
@@ -91,6 +92,7 @@ if __name__ == '__main__':
         metavar='PATH',
         action='store',
         type=str,
+        default=None,
         help='path to data directory'
     )
 
@@ -117,14 +119,6 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '--bockwurst',
-        '-b',
-        dest='bockwurst',
-        action='store_true',
-        help='show me some bockwurst (default: False)'
-    )
-
-    parser.add_argument(
         '--verbose',
         '-v',
         dest='verbose',
@@ -133,36 +127,6 @@ if __name__ == '__main__':
     )
 
     args = parser.parse_args()
-
-    if (args.bockwurst):
-        print(
-            "\n"
-            "                 `:+syhdmmmmmmdhys+:`          \n"
-            "             `/sdmmmmmmmmmmmmmmmmmmmmds/`      \n"
-            "          `/ymmmmdy+:.:mmmmmmmmmmmmmmmmmmy/`   \n"
-            "        `+dmmmh+- `/oydmmmmmmmmmmmmmmmmmmmmd+` \n"
-            "       /dmmms- -odmmmmmmmmmmmmmmmmmmmmmmmmmmmh`\n"
-            "     `ymmmy. /hmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm+\n"
-            "    .dmmm/ -hmmmmmmmmmyo/::::/oymmmmmmmmmmmmmm/\n"
-            "   .dmmm- /mmmmmmmmo-            -ommmmmmmmmmh`\n"
-            "   hmmm- +mmmmmmmo`                `/ydmmmhdds:\n"
-            "  /mmmo :mmmmmmm:                          :`  \n"
-            "  ymmm` hmmmmmm:                               \n"
-            "  mmmh`-mmmmmmh                                \n"
-            "  mmmmmmmmmmmmy                                \n"
-            "  mmmmmmmmmmmmh                                \n"
-            "  ymmmmmmmmmmmm:                               \n"
-            "  /mmmmmmmmmmmmm:                              \n"
-            "   hmmmmmmmmmmmmmo`                            \n"
-            "   `dmmmmmmmmmmmmmmo-                          \n"
-            "    .dmmmmmmmmmmmmmmmmyo/::::/oo+/-            \n"
-            "     `ymmmmmmmmmmmmmmmmmmmmmmmmmmmmdoy         \n"
-            "       /dmmmmmmmmmmmmmmmmmmmmmmmmmmmmmo        \n"
-            "        `+dmmmmmmmmmmmmmmmmmmmmmmmmmmd         \n"
-            "          `/ymmmmmmmmmmmmmmmmmmmmmmmmo         \n"
-            "             `/sdmmmmmmmmmmmmmmmmmmmo          \n"
-            "                 .:+syhdmmmmmmdhys/`           \n"
-        )
 
     run_experiments(
         args.encoding,
