@@ -32,7 +32,7 @@ cd ../../src/python; python setup.py build_ext --inplace
 
 There are two versions of Compresso in this repository. Under the src folder there is an updated c++ and python version that extends on the Compresso scheme presented in MICCAI. This algorithm, among other things, implements bit-packing to further improve compression results.
 
-The compression scheme in experiments/compression/compresso follows the MICCAI paper exactly. 
+The compression scheme in `experiments/compression/compresso` follows the MICCAI paper exactly. 
 
 ## Compress Your Segmentation Stack
 
@@ -43,7 +43,7 @@ import compression as C
 ```
 
 # With LZMA
-C.LZMA.compress(C.COMPRESSO(<NUMPY-ARRAY>))
+C.LZMA.compress(C.COMPRESSO.compress(<NUMPY-3D-ARRAY>))
 
 ## Experiments
 
@@ -74,7 +74,7 @@ optional arguments:
 ```
 
 
-Make sure the data sets are located in `experiments/data` or specify the location. specify the correct path to the data. The data itself can be found here:
+Make sure the data sets are located in `~/compresso/data/` or specify the location. The data from the paper can be found here:
 
 - AC3: <http://www.openconnectomeproject.org/kasthuri11> _(Kasthuri et al. Saturated reconstruction of a volume of neocortex. Cell 2015.)_
 - CREMI: <http://www.cremi.org>
