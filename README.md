@@ -19,13 +19,14 @@
 
 ```bash
 git clone https://github.com/vcg/compresso && cd compresso
-conda create -n compresso_env --file requirements.txt
+conda create -n compresso_env --file requirements.txt -c chen -c sunpy -c conda-forge -c auto -c indygreg
+source activate compresso_env
 # for Compresso scheme as presented in MICCAI
 cd experiments/compression/compresso; python setup.py build_ext --inplace
 # to run the neuroglancer compression scheme
 cd ../neuroglancer; python setup.py build_ext --inplace
 # for Compresso v2 that is under development
-cd ../../src/python; python setup.py build_ext --inplace
+cd ../../../src/python; python setup.py build_ext --inplace
 ```
 
 ## Compress Segmentation Stacks
