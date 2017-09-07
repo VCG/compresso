@@ -36,14 +36,13 @@ The compression scheme in `experiments/compression/compresso` follows the MICCAI
 
 ## Compress Your Segmentation Stack
 
-In order to test Compresso on your own data simply use
+In order to test Compresso on your own data simply use:
 
 ```
 import compression as C
-```
-
 # With LZMA
 C.LZMA.compress(C.COMPRESSO.compress(<NUMPY-3D-ARRAY>))
+```
 
 ## Experiments
 
