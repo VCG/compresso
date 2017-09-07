@@ -79,7 +79,11 @@ Make sure the data sets are located in `experiments/data` or specify the locatio
 - AC3: <http://www.openconnectomeproject.org/kasthuri11> _(Kasthuri et al. Saturated reconstruction of a volume of neocortex. Cell 2015.)_
 - CREMI: <http://www.cremi.org>
 - CYL: <http://www.openconnectomeproject.org/kasthuri11> _(Kasthuri et al. Saturated reconstruction of a volume of neocortex. Cell 2015.)_
-- MRI: This is an unpublished dataset. Once it's available we will link it here.
+- SPL Brain Atlas: <http://www.spl.harvard.edu/publications/item/view/2037> _(Halle M., Talos I-F., Jakab M., Makris N., Meier D., Wald L., Fischl B., Kikinis R. Multi-modality MRI-based Atlas of the Brain. SPL 2017 Jan)_
+- SPL Knee Atlas: <http://www.spl.harvard.edu/publications/item/view/2037> _(Richolt J.A., Jakab M., Kikinis R. SPL Knee Atlas. SPL 2015 Sep)_
+- SPL Abdominal Atlas: <http://www.spl.harvard.edu/publications/item/view/1918> _(Talos I-F., Jakab M., Kikinis R. SPL Abdominal Atlas. SPL 2015 Sep)_
+- BSD500: <https://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/resources.html> _(Contour Detection and Hierarchical Image Segmentation P. Arbelaez, M. Maire, C. Fowlkes and J. Malik. IEEE TPAMI, Vol. 33, No. 5, pp. 898-916, May 2011.)_
+- VOC2012: <http://host.robots.ox.ac.uk/pascal/VOC/voc2012/> _(Everingham, M. and Van~Gool, L. and Williams, C. K. I. and Winn, J. and Zisserman, A., The PASCAL Visual Object Classes Challenge 2012 (VOC2012) Results)_
 
 ### Results From the Paper
 
