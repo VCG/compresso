@@ -131,7 +131,7 @@ static bool *
 ExtractBoundaries(unsigned long *data, int zres, int yres, int xres)
 {
     // create the boundaries array
-    bool *boundaries = new bool[grid_size];
+    bool *boundaries = new bool[grid_size]();
     if (!boundaries) { fprintf(stderr, "Failed to allocate memory for boundaries...\n"); exit(-1); }
 
     // determine which pixels differ from east or south neighbors
@@ -302,9 +302,7 @@ EncodeBoundaries(bool *boundaries, int zres, int yres, int xres, int zstep, int 
 
     // create an empty array for the encodings
     int nblocks = nzblocks * nyblocks * nxblocks;
-    unsigned long *boundary_data = new unsigned long[nblocks];
-    for (int iv = 0; iv < nblocks; ++iv)
-        boundary_data[iv] = 0;
+    unsigned long *boundary_data = new unsigned long[nblocks]();
     
     for (int iz = 0; iz < zres; ++iz) {
         for (int iy = 0; iy < yres; ++iy) {
@@ -498,9 +496,7 @@ DecodeBoundaries(unsigned long *boundary_data, std::vector<unsigned long> *value
     int nyblocks = (int)(ceil((double)yres / ystep) + 0.5);
     int nxblocks = (int)(ceil((double)xres / xstep) + 0.5);
 
-    bool *boundaries = new bool[grid_size];
-    for (int iv = 0; iv < grid_size; ++iv)
-        boundaries[iv] = false;
+    bool *boundaries = new bool[grid_size]();
 
     for (int iz = 0; iz < zres; ++iz) {
         for (int iy = 0; iy < yres; ++iy) {
@@ -530,19 +526,14 @@ DecodeBoundaries(unsigned long *boundary_data, std::vector<unsigned long> *value
 static unsigned long *
 IDReverseMapping(unsigned long *components, std::vector<unsigned long> *ids, int zres, int yres, int xres)
 {
-    unsigned long *decompressed_data = new unsigned long[grid_size];
-    for (int iv = 0; iv < grid_size; ++iv)
-        decompressed_data[iv] = 0;
+    unsigned long *decompressed_data = new unsigned long[grid_size]();
 
     int ids_index = 0;
     for (int iz = 0; iz < zres; ++iz) {
 
         // create mapping (not memory efficient but FAST!!)
         // number of components is guaranteed to be less than ids->size()
-        unsigned long *mapping = new unsigned long[ids->size()];
-        for (unsigned int iv = 0; iv < ids->size(); ++iv) {
-            mapping[iv] = 0;
-        }
+        unsigned long *mapping = new unsigned long[ids->size()]();
 
         for (int iy = 0; iy < yres; ++iy) {
             for (int ix = 0; ix < xres; ++ix) {
