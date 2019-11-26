@@ -13,7 +13,7 @@ setuptools.setup(
       'compresso',
       include_dirs=[np.get_include(), 'compresso.hxx'],
       sources=['compresso.cpp'],
-      extra_compile_args=['-O3', '-std=c++11', '-C'],
+      extra_compile_args=['-O3', '-std=c++11'],
       language='c++'
     )
   ],

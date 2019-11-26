@@ -1,64 +1,107 @@
-# cimports
-cimport numpy as np
 cimport cython
-
-# python imports
-from libc.stdint cimport uint8_t, uint16_t, uint32_t, uint64_t
+cimport numpy as np
 import numpy as np
+import ctypes
+from math import ceil
 
-ctypedef fused Type:
-    uint8_t
-    uint16_t
-    uint32_t
-    uint64_t
+cdef extern from "compresso.hxx" namespace "compresso":
+    unsigned long *Compress(unsigned long *data, int zres, int yres, int xres, int zstep, int ystep, int xstep)
+    unsigned long *Decompress(unsigned long *compressed_data)
 
-# import c++ functions
-cdef extern from "compresso.hxx" namespace "Compresso":
-    unsigned char *Compress(...)
-    Type *Decompress[Type](...)
+def compress(data):
+    '''Boundary Encoding compression'''
+    # reshape the data into one dimension
+    zres, yres, xres = data.shape
+    (zstep, ystep, xstep) = (1, 8, 8)
+    header_size = 9
 
+    nzblocks = int(ceil(float(zres) / zstep))
+    nyblocks = int(ceil(float(yres) / ystep))
+    nxblocks = int(ceil(float(xres) / xstep))
+    nblocks = nzblocks * nyblocks * nxblocks
 
-class Compresso(object):
-    @staticmethod
-    def name():
-        return 'Compresso'
+    # call the Cython function
+    cdef np.ndarray[unsigned long, ndim=3, mode='c'] cpp_data
+    cpp_data = np.ascontiguousarray(data, dtype=ctypes.c_uint64)
+    cdef unsigned long *cpp_compressed_data = Compress(&(cpp_data[0,0,0]), zres, yres, xres, zstep, ystep, xstep)
+    length = header_size + cpp_compressed_data[3] + cpp_compressed_data[4] + cpp_compressed_data[5] + nblocks
+    cdef unsigned long[:] tmp_compressed_data = <unsigned long[:length]> cpp_compressed_data
+    compressed_data = np.asarray(tmp_compressed_data)
 
-    @staticmethod
-    def compress(Type[:,:,:] data, res, steps):
-        # call the c++ compression function
-        cdef long *cpp_res = [res[0], res[1], res[2]]
-        cdef long *cpp_steps = [steps[0], steps[1], steps[2]]
-        cdef long *nentries = [0]
-        cdef unsigned char *compressed_data = Compress(&(data[0,0,0]), cpp_res, cpp_steps, nentries)
+    # compress all the zeros in the window values
 
-        # convert to numpy array
-        cdef unsigned char[:] tmp_compressed_data = <unsigned char[:nentries[0]]> compressed_data
+    nblocks = int(ceil(float(zres) / zstep)) * int(ceil(float(yres) / ystep)) * int(ceil(float(xres) / xstep))
+    
+    intro_data = compressed_data[:-nblocks]
+    block_data = compressed_data[-nblocks:]
+    
+    if (np.max(block_data) < 2**32):
+        block_data = block_data.astype(np.uint32)
 
-        return np.asarray(tmp_compressed_data)
+    condensed_blocks = list()
+    inzero = False
+    prev_zero = 0
+    for ie, block in enumerate(block_data):
+        if block == 0:
+            # start counting zeros
+            if not inzero:
+                inzero = True
+                prev_zero = ie
+        else:
+            if inzero:
+                # add information for the previous zero segment
+                condensed_blocks.append((ie - prev_zero) * 2 + 1)
+                inzero = False
+            condensed_blocks.append(block * 2)
 
-    @staticmethod
-    def decompress(data):
-        # get the number of bytes per uint (1, 2, 4, or 8)
-        # the 76 comes from the offset in the header
-        BYTE_OFFSET = 76
-        nbytes = data[BYTE_OFFSET]
+    condensed_blocks = np.array(condensed_blocks).astype(np.uint32)
 
-        # call the c++ decompression function
-        cdef long *res = [0, 0, 0]
-        cdef np.ndarray[unsigned char, ndim=1, mode='c'] cpp_data = np.ascontiguousarray(data)
+    return intro_data.tobytes() + condensed_blocks.tobytes()
 
-        # just call this as unsigned long and convert later    
-        # TODO this is a bad hack
-        cdef unsigned long *cpp_decompressed_data = Decompress['unsigned long'](&(cpp_data[0]), res)
+def decompress(data):
+    '''Boundary Decoding decompression'''
 
-        # convert the c++ pointer to a numpy array
-        nentries = res[0] * res[1] * res[2]
-        cdef unsigned long[:] tmp_decompressed_data = <unsigned long[:nentries]> cpp_decompressed_data
-        decompressed_data = np.asarray(tmp_decompressed_data).reshape((res[0], res[1], res[2]))
+    # read the first nine bytes corresponding to the header
+    header = np.frombuffer(data[0:72], dtype=np.uint64)
 
-        # convert to a different data type if needed
-        if nbytes == 1: decompressed_data = decompressed_data.astype(np.uint8)
-        elif nbytes == 2: decompressed_data = decompressed_data.astype(np.uint16)
-        elif nbytes == 4: decompressed_data = decompressed_data.astype(np.uint32)
+    zres = header[0]
+    yres = header[1]
+    xres = header[2]
+    ids_size = int(header[3])
+    values_size = int(header[4])
+    locations_size = int(header[5])
+    zstep = header[6]
+    ystep = header[7]
+    xstep = header[8]
 
-        return np.asarray(decompressed_data)
+    # get the intro data
+    intro_size = 9 + ids_size + values_size + locations_size
+    intro_data = np.frombuffer(data[0:intro_size*8], dtype=np.uint64)
+
+    # get the compressed blocks
+    nblocks = int(ceil(float(zres) / zstep)) * int(ceil(float(yres) / ystep)) * int(ceil(float(xres) / xstep))
+    compressed_blocks = np.frombuffer(data[intro_size*8:], dtype=np.uint32)
+    block_data = np.zeros(nblocks, dtype=np.uint64)
+
+    cdef size_t index = 0
+    cdef size_t nzeros = 0
+    for block in compressed_blocks:
+        # greater values correspond to zero blocks
+        if block % 2:
+            nzeros = (block  - 1) // 2
+            block_data[index:index+nzeros] = 0
+            index += nzeros
+        else:
+            block_data[index] = block // 2
+            index += 1
+
+    data = np.concatenate((intro_data, block_data))
+
+    cdef np.ndarray[unsigned long, ndim=1, mode='c'] cpp_data
+    cpp_data = np.ascontiguousarray(data, dtype=ctypes.c_uint64)
+    n = zres * yres * xres
+
+    cdef unsigned long[:] cpp_decompressed_data = <unsigned long[:n]> Decompress(&(cpp_data[0]))
+    decompressed_data = np.reshape(np.asarray(cpp_decompressed_data), (zres, yres, xres))
+
+    return decompressed_data
