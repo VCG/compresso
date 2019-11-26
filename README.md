@@ -32,62 +32,6 @@ reconstituted_labels = compresso.decompress(compressed_labels) # compressed byte
 pip install compresso
 ```
 
-## Compress Segmentation Stacks
-
-There are two versions of Compresso in this repository. Under the src folder there is an updated c++ and python version that extends on the Compresso scheme presented in MICCAI. This algorithm, among other things, implements bit-packing to further improve compression results.
-
-The compression scheme in `experiments/compression/compresso` follows the MICCAI paper exactly. 
-
-## Compress Your Segmentation Stack
-
-In order to test Compresso on your own data simply use:
-
-```
-import compression as C
-# With LZMA
-C.LZMA.compress(C.COMPRESSO.compress(<NUMPY-3D-ARRAY>))
-```
-
-## Experiments
-
-```
-# the dataset must be in hdf5 format.
-experiments/run.py COMPRESSO LZMA ac3 -r 1 -s 1 -d '/<PATH>/<TO>/<DATA>'
-```
-
-Usage:
-
-```
-usage: run.py [-h] [--directory PATH] [--runs NUM] [--slices NUM]
-              [--verbose]
-              encoding compression dataset
-
-positional arguments:
-  encoding              name of encoding scheme
-  compression           name of compression scheme
-  dataset               name of data set
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --directory PATH, -d PATH
-                        path to data directory
-  --runs NUM, -r NUM    number of runs (default: 1)
-  --slices NUM, -s NUM  number of slices per dataset (default: -1 (all))
-  --verbose, -v         print progress (default: False) 
-```
-
-
-Make sure the data sets are located in `~/compresso/data/` or specify the location. The data from the paper can be found here:
-
-- AC3: <http://www.openconnectomeproject.org/kasthuri11> _(Kasthuri et al. Saturated reconstruction of a volume of neocortex. Cell 2015.)_
-- CREMI: <http://www.cremi.org>
-- CYL: <http://www.openconnectomeproject.org/kasthuri11> _(Kasthuri et al. Saturated reconstruction of a volume of neocortex. Cell 2015.)_
-- SPL Brain Atlas: <http://www.spl.harvard.edu/publications/item/view/2037> _(Halle M., Talos I-F., Jakab M., Makris N., Meier D., Wald L., Fischl B., Kikinis R. Multi-modality MRI-based Atlas of the Brain. SPL 2017 Jan)_
-- SPL Knee Atlas: <http://www.spl.harvard.edu/publications/item/view/2037> _(Richolt J.A., Jakab M., Kikinis R. SPL Knee Atlas. SPL 2015 Sep)_
-- SPL Abdominal Atlas: <http://www.spl.harvard.edu/publications/item/view/1918> _(Talos I-F., Jakab M., Kikinis R. SPL Abdominal Atlas. SPL 2015 Sep)_
-- BSD500: <https://www.eecs.berkeley.edu/Research/Projects/CS/vision/grouping/resources.html> _(Contour Detection and Hierarchical Image Segmentation P. Arbelaez, M. Maire, C. Fowlkes and J. Malik. IEEE TPAMI, Vol. 33, No. 5, pp. 898-916, May 2011.)_
-- VOC2012: <http://host.robots.ox.ac.uk/pascal/VOC/voc2012/> _(Everingham, M. and Van~Gool, L. and Williams, C. K. I. and Winn, J. and Zisserman, A., The PASCAL Visual Object Classes Challenge 2012 (VOC2012) Results)_
-
 ### Results From the Paper
 
 **Compression Performance**
