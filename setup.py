@@ -11,7 +11,7 @@ setuptools.setup(
   ext_modules=[
     setuptools.Extension(
       'compresso',
-      include_dirs=[np.get_include(), 'compresso.hxx'],
+      include_dirs=[ np.get_include() ],
       sources=['compresso.cpp'],
       extra_compile_args=['-O3', '-std=c++11'],
       language='c++'

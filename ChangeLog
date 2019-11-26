@@ -1,0 +1,51 @@
+CHANGES
+=======
+
+1.0.0
+-----
+
+* docs: update docstring for compress/decompress + reference
+* test: add size restriction
+* test: add reconstitution test
+* chore: add Dockerfile for manylinux distribution
+* Revert "perf: ~1/3 faster connected components algorithm"
+* refactor: remove redundant array inititalizations
+* perf: ~1/3 faster connected components algorithm
+* fix: used the right implementation of compresso (from experiments)
+* chore: update gitignore
+* refactor: setup such that it is packageable
+* Fixed installation instructions
+* Updated requirements.txt to work with conda
+* README: fixed formatting
+* Removed wrong instructions
+* README: added datasets
+* Updated README
+* Removed old compression location
+* requirements.txt: moved to conda environment
+* experiments: updated all files to work with new framework
+* .gitignore: ignore temp cython files
+* .gitignore: ignore the results folder
+* compression: removed failed methods
+* compression: removed old files
+* README: fixed formatting
+* README: updated instructions
+* \_LEGACY: removed old outdated experiments
+* Mention paper explicitly
+* Minimize
+* Update results
+* Update name
+* Add link to paper
+* Update name
+* Update name
+* Add plotting script
+* Fix failure when using lowercase names
+* Add missing no-compression class
+* Sanity assertion runs only once
+* Added experiment runner. Fixed a bug. Updated README
+* Set to root path
+* Update to latest banner
+* Add logo
+* Update references visually
+* Update figure composition to save space
+* Bockwurst encoding and experiments
+* Initial commit
