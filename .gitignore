@@ -26,7 +26,6 @@ var/
 *.egg
 results/
 neuroglancer.cpp
-compresso.cpp
 
 
 # PyInstaller

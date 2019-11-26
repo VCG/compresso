@@ -1,15 +1,38 @@
+"""
+Python bindings for the Compresso labeled image compression algorithm.
+
+B. Matejek, D. Haehn, F. Lekschas, M. Mitzenmacher, and H. Pfister.
+"Compresso: Efficient Compression of Segmentation Data for Connectomics".
+Springer: Intl. Conf. on Medical Image Computing and Computer-Assisted Intervention.
+2017.
+
+https://vcg.seas.harvard.edu/publications/compresso-efficient-compression-of-segmentation-data-for-connectomics
+https://github.com/vcg/compresso
+
+PyPI Distribution: 
+https://github.com/seung-lab/compresso
+
+License: MIT
+"""
+
 cimport cython
 cimport numpy as np
 import numpy as np
 import ctypes
-from math import ceil
 
 cdef extern from "compresso.hxx" namespace "compresso":
     unsigned long *Compress(unsigned long *data, int zres, int yres, int xres, int zstep, int ystep, int xstep)
     unsigned long *Decompress(unsigned long *compressed_data)
 
 def compress(data):
-    '''Boundary Encoding compression'''
+    """
+    Compress a three dimensional numpy array containing image segmentation
+    using the Compresso algorithm.
+    
+    Returns: compressed bytes b'...'
+    """
+    from math import ceil
+
     # reshape the data into one dimension
     zres, yres, xres = data.shape
     (zstep, ystep, xstep) = (1, 8, 8)
@@ -59,7 +82,13 @@ def compress(data):
     return intro_data.tobytes() + condensed_blocks.tobytes()
 
 def decompress(data):
-    '''Boundary Decoding decompression'''
+    """
+    Decompress a compresso encoded byte stream into a three dimensional 
+    numpy array containing image segmentation.
+
+    Returns: compressed bytes b'...'
+    """
+    from math import ceil 
 
     # read the first nine bytes corresponding to the header
     header = np.frombuffer(data[0:72], dtype=np.uint64)
