@@ -1,5 +1,7 @@
 # Compresso: Efficient Compression of Segmentation Data For Connectomics
 
+*NOTE: This is an unofficial packaging of the work by Matejek et al. which can be found here: https://github.com/VCG/compresso *
+
 [![Paper](https://img.shields.io/badge/paper-accepted-red.svg?colorB=f52ef0)](https://vcg.seas.harvard.edu/publications/compresso-efficient-compression-of-segmentation-data-for-connectomics)
 [![MICCAI](https://img.shields.io/badge/presentation-MICCAI%202017-red.svg?colorB=135f89)](http://www.miccai2017.org/schedule)
 [![doi](https://img.shields.io/badge/used%20by-rhoana-red.svg?colorB=2bf55b)](http://www.rhoana.org)
@@ -12,7 +14,7 @@
 
 ## Requirements
 
-- Python 2.7
+- Python 3.5+
 - conda
 
 ## Setup

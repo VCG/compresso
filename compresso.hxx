@@ -9,10 +9,6 @@
 #include <algorithm>
 #include <ctime>
 
-
-
-
-
 namespace Compresso {
     // function definitions
     template<typename Type> unsigned char *Compress(Type *data, long res[3], long steps[3], long *nentries = NULL);
@@ -385,44 +381,44 @@ namespace Compresso {
         long nwindows = nblocks[RN_Z] * nblocks[RN_Y] * nblocks[RN_X];
 
         // get the boundary voxels
-        std::clock_t start_time = std::clock();
+        // std::clock_t start_time = std::clock();
         bool *boundaries = ExtractBoundaries(data, res);
         if (!boundaries) return NULL;
-        printf("Extract boundaries: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("Extract boundaries: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
 
         // get the connected components
         // use unsigned long since there could be more components than Type.MAX
-        start_time = std::clock();
+        // start_time = std::clock();
         unsigned long *components = ConnectedComponents(boundaries, res);
         if (!components) return NULL;
-        printf("Connected components: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("Connected components: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
 
         // get the ids
-        start_time = std::clock();
+        // start_time = std::clock();
         std::vector<unsigned long> ids = std::vector<unsigned long>();
         IDMapping(components, data, ids, res);
-        printf("ID mapping: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("ID mapping: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
 
         // free memory
         delete[] components;
 
         // encode the boundary data
-        start_time = std::clock();
+        // start_time = std::clock();
         unsigned long *boundary_data = EncodeBoundaries(boundaries, res, steps);
         if (!boundary_data) return NULL;
-        printf("Encode boundaries: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("Encode boundaries: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
 
         // map the window values
-        start_time = std::clock();
+        // start_time = std::clock();
         std::vector<unsigned long> values = std::vector<unsigned long>();
         ValueMapping(boundary_data, values, nwindows);
-        printf("Map values: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("Map values: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
 
         // get the locations
-        start_time = std::clock();
+        // start_time = std::clock();
         std::vector<unsigned long> locations = std::vector<unsigned long>();
         EncodeIndeterminateLocations(boundaries, data, locations, res);
-        printf("Encode locations: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("Encode locations: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
 
         // get the maximum id value
         unsigned long maximum_id = 0;
@@ -710,33 +706,33 @@ namespace Compresso {
         }
         
         // get the boundaries from the data
-        std::clock_t start_time = std::clock();
+        // std::clock_t start_time = std::clock();
         bool *boundaries = DecodeBoundaries(boundary_data, values, res, steps);
         if (!boundaries) return NULL;
-        printf("Decode boundaries: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("Decode boundaries: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
 
         // free memory 
         delete[] boundary_data;
 
         // get the connected components
-        start_time = std::clock();
+        // start_time = std::clock();
         unsigned long *components = ConnectedComponents(boundaries, res);
         if (!components) return NULL;
-        printf("Connected components: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("Connected components: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
 
         // decompress the data
-        start_time = std::clock();
+        // start_time = std::clock();
         Type *decompressed_data = IDReverseMapping<Type>(components, ids, res);
         if (!decompressed_data) return NULL;
-        printf("Reverse mapping: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("Reverse mapping: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
 
         // free memory
         delete[] components;
 
         // decode the final indeterminate locations
-        start_time = std::clock();
+        // start_time = std::clock();
         DecodeIndeterminateLocations(boundaries, decompressed_data, locations, res);
-        printf("Decode locations: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
+        // printf("Decode locations: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
 
         // return the decompressed data
         return decompressed_data;
