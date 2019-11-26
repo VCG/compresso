@@ -9,5 +9,11 @@ DTYPES = [
 def test_compress_decompress():
   for dtype in DTYPES:
     labels = np.random.randint(0, 25, size=(100, 200, 150))
-    reconstituted = compresso.decompress(compresso.compress(labels))
+    compressed = compresso.compress(labels)
+
+    # it's not supposed to compress random images well
+    # so add 10% for overhead
+    assert len(compressed) < labels.nbytes * 1.1 
+
+    reconstituted = compresso.decompress(compressed)
     assert np.all(labels == reconstituted)
