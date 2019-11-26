@@ -7,7 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <stdio.h>
-
+#include <cstdint>
 
 namespace compresso {
 
@@ -31,52 +31,98 @@ IndicesToIndex(int ix, int iy, int iz) {
 //// UNION-FIND CLASS FOR COMPONENTS ////
 /////////////////////////////////////////
 
-class UnionFindElement {
-  public:
-    UnionFindElement(unsigned long label) :
-    label(label),
-    parent(this),
-    rank(0)
-    {}
 
-  public:
-    unsigned long label;
-    UnionFindElement *parent;
-    int rank;
+template <typename T>
+class DisjointSet {
+public:
+  T *ids;
+  size_t length;
+
+  DisjointSet () {
+    length = 65536;
+    ids = new T[length]();
+  }
+
+  DisjointSet (size_t len) {
+    length = len;
+    ids = new T[length]();
+  }
+
+  DisjointSet (const DisjointSet &cpy) {
+    length = cpy.length;
+    ids = new T[length]();
+
+    for (int i = 0; i < length; i++) {
+      ids[i] = cpy.ids[i];
+    }
+  }
+
+  ~DisjointSet () {
+    delete []ids;
+  }
+
+  T root (T n) {
+    T i = ids[n];
+    while (i != ids[i]) {
+      ids[i] = ids[ids[i]]; // path compression
+      i = ids[i];
+    }
+
+    return i;
+  }
+
+  bool find (T p, T q) {
+    return root(p) == root(q);
+  }
+
+  void add(T p) {
+    if (p >= length) {
+      printf("Connected Components Error: Label %d cannot be mapped to union-find array of length %lu.\n", p, length);
+      throw "maximum length exception";
+    }
+
+    if (ids[p] == 0) {
+      ids[p] = p;
+    }
+  }
+
+  void unify (T p, T q) {
+    if (p == q) {
+      return;
+    }
+
+    T i = root(p);
+    T j = root(q);
+
+    if (i == 0) {
+      add(p);
+      i = p;
+    }
+
+    if (j == 0) {
+      add(q);
+      j = q;
+    }
+
+    ids[i] = j;
+  }
+
+  void clear () {
+    for (size_t i = 0; i < length; i++) {
+        ids[i] = 0;
+    }
+  }
+
+  void print() {
+    for (int i = 0; i < 15; i++) {
+      printf("%d, ", ids[i]);
+    }
+    printf("\n");
+  }
+
+  // would be easy to write remove. 
+  // Will be O(n).
 };
-
-UnionFindElement *
-Find(UnionFindElement *x) 
-{
-    if (x->parent != x) {
-        x->parent = Find(x->parent);
-    }
-    return x->parent;
-}
-
-void 
-Union(UnionFindElement *x, UnionFindElement *y)
-{
-    UnionFindElement *xroot = Find(x);
-    UnionFindElement *yroot = Find(y);
-
-    if (xroot == yroot) { return; }
-
-    // merge teh two roots
-    if (xroot->rank < yroot->rank) {
-        xroot->parent = yroot;
-    }
-    else if (xroot->rank > yroot->rank) {
-        yroot->parent = xroot;
-    }
-    else {
-        yroot->parent = xroot;
-        xroot->rank = xroot->rank + 1;
-    }
-}
-
-
-
 /////////////////////////////////////////
 //// COMPRESSO COMPRESSION ALGORITHM ////
 /////////////////////////////////////////
@@ -116,16 +162,16 @@ static unsigned long *
 ConnectedComponents(bool *boundaries, int zres, int yres, int xres)
 {
     // create the connected components
-    unsigned long *components = new unsigned long[grid_size];
-    if (!components) { fprintf(stderr, "Failed to allocate memory for connected components...\n"); exit(-1); }
-    for (int iv = 0; iv < grid_size; ++iv) 
-        components[iv] = 0;
+    unsigned long *components = new unsigned long[grid_size]();
+    if (!components) { 
+        fprintf(stderr, "Failed to allocate memory for connected components...\n"); exit(-1); 
+    }
+
+    DisjointSet<unsigned int> equivalences(xres * yres);
 
     // run connected components for each slice
     for (int iz = 0; iz < zres; ++iz) {
-
-        // create vector for union find elements
-        std::vector<UnionFindElement *> union_find = std::vector<UnionFindElement *>();
+        equivalences.clear();
 
         // current label in connected component
         int curlab = 1;
@@ -134,7 +180,9 @@ ConnectedComponents(bool *boundaries, int zres, int yres, int xres)
                 int iv = IndicesToIndex(ix, iy, iz);
 
                 // continue if boundary
-                if (boundaries[iv]) continue;
+                if (boundaries[iv]) {
+                    continue;
+                }
 
                 // only consider the pixel directly to the north and west
                 int north = IndicesToIndex(ix - 1, iy, iz);
@@ -143,65 +191,69 @@ ConnectedComponents(bool *boundaries, int zres, int yres, int xres)
                 int neighbor_labels[2] = { 0, 0 };
 
                 // get the labels for the relevant neighbor
-                if (ix > 0) neighbor_labels[0] = components[north];
-                if (iy > 0) neighbor_labels[1] = components[west];
+                if (ix > 0) {
+                    neighbor_labels[0] = components[north];
+                }
+                
+                if (iy > 0) {
+                    neighbor_labels[1] = components[west];
+                }
 
                 // if the neighbors are boundary, create new label
                 if (!neighbor_labels[0] && !neighbor_labels[1]) {
                     components[iv] = curlab;
-
-                    // add to union find structure
-                    union_find.push_back(new UnionFindElement(0));
-
-                    // update the next label
+                    equivalences.add(curlab);
                     curlab++;
                 }
                 // the two pixels have equal non-trivial values
-                else if (neighbor_labels[0] == neighbor_labels[1]) 
+                else if (neighbor_labels[0] == neighbor_labels[1]) {
                     components[iv] = neighbor_labels[0];
+                }
                 // neighbors have differing values
+                else if (!neighbor_labels[0]) {
+                    components[iv] = neighbor_labels[1];
+                }
+                else if (!neighbor_labels[1]) {
+                    components[iv] = neighbor_labels[0];
+                }
                 else {
-                    if (!neighbor_labels[0]) components[iv] = neighbor_labels[1];
-                    else if (!neighbor_labels[1]) components[iv] = neighbor_labels[0];
-                    // neighbors have differing non-trivial values
-                    else {
-                        // take minimum value
-                        components[iv] = std::min(neighbor_labels[0], neighbor_labels[1]);
-
-                        // set the equivalence relationship
-                        Union(union_find[neighbor_labels[0] - 1], union_find[neighbor_labels[1] - 1]);
-                    }
+                    components[iv] = std::min(neighbor_labels[0], neighbor_labels[1]);
+                    equivalences.unify(neighbor_labels[0], neighbor_labels[1]);
                 }
             }
         }
 
+        size_t num_labels = curlab;
+        unsigned int* renumber = new unsigned int[num_labels + 1]();
         // reset the current label to 1
         curlab = 1;
+        int label = 0;
 
         // create connected components (ordered)
         for (int iy = 0; iy < yres; ++iy) {
             for (int ix = 0; ix < xres; ++ix) {
                 int iv = IndicesToIndex(ix, iy, iz);
 
-                if (boundaries[iv]) continue;
-
-                // get the parent for this component
-                UnionFindElement *comp = Find(union_find[components[iv] - 1]);
-                if (!comp->label) {
-                    comp->label = curlab;
-                    curlab++;
+                if (boundaries[iv]) {
+                   continue;
                 }
 
-                components[iv] = comp->label;
+                label = equivalences.root(components[iv]);
+
+                if (renumber[label]) {
+                  components[iv] = renumber[label];
+                }
+                else {
+                  renumber[label] = curlab;
+                  components[iv] = curlab;
+                  curlab++;
+                }
             }
         }
 
-        for (unsigned int iv = 0; iv < union_find.size(); ++iv)
-            delete union_find[iv];
+        delete[] renumber;
     }
 
-
-    // return the connected components array
     return components;
 }
 
