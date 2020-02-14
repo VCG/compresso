@@ -15,6 +15,14 @@
 - Python 2.7
 - conda
 
+## Pip Installation
+
+Thanks to Will Silversmith, you can now install compresso with pip!
+
+```
+pip install compresso
+```
+    
 ## Setup
 
 ```bash
