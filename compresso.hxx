@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <set>
 #include <cmath>
+#include <cstdint>
 #include <vector>
 #include <algorithm>
 #include <stdio.h>
@@ -33,14 +34,14 @@ IndicesToIndex(int ix, int iy, int iz) {
 
 class UnionFindElement {
   public:
-    UnionFindElement(unsigned long label) :
+    UnionFindElement(uint64_t label) :
     label(label),
     parent(this),
     rank(0)
     {}
 
   public:
-    unsigned long label;
+    uint64_t label;
     UnionFindElement *parent;
     int rank;
 };
@@ -82,7 +83,7 @@ Union(UnionFindElement *x, UnionFindElement *y)
 /////////////////////////////////////////
 
 static bool *
-ExtractBoundaries(unsigned long *data, int zres, int yres, int xres)
+ExtractBoundaries(uint64_t *data, int zres, int yres, int xres)
 {
     // create the boundaries array
     bool *boundaries = new bool[grid_size]();
@@ -112,11 +113,11 @@ ExtractBoundaries(unsigned long *data, int zres, int yres, int xres)
     return boundaries;
 }
 
-static unsigned long *
+static uint64_t *
 ConnectedComponents(bool *boundaries, int zres, int yres, int xres)
 {
     // create the connected components
-    unsigned long *components = new unsigned long[grid_size];
+    uint64_t *components = new uint64_t[grid_size];
     if (!components) { fprintf(stderr, "Failed to allocate memory for connected components...\n"); exit(-1); }
     for (int iv = 0; iv < grid_size; ++iv) 
         components[iv] = 0;
@@ -205,15 +206,15 @@ ConnectedComponents(bool *boundaries, int zres, int yres, int xres)
     return components;
 }
 
-static std::vector<unsigned long> *
-IDMapping(unsigned long *components, unsigned long *data, int zres, int yres, int xres)
+static std::vector<uint64_t> *
+IDMapping(uint64_t *components, uint64_t *data, int zres, int yres, int xres)
 {
     // create a vector of the ids
-    std::vector<unsigned long> *ids = new std::vector<unsigned long>();
+    std::vector<uint64_t> *ids = new std::vector<uint64_t>();
 
     for (int iz = 0; iz < zres; ++iz) {
         // create a set for this individual slice
-        std::set<unsigned long> hash_map = std::set<unsigned long>();
+        std::set<uint64_t> hash_map = std::set<uint64_t>();
 
         // iterate over the entire slice
         for (int iy = 0; iy < yres; ++iy) {
@@ -221,14 +222,14 @@ IDMapping(unsigned long *components, unsigned long *data, int zres, int yres, in
                 int iv = IndicesToIndex(ix, iy, iz);
 
                 // get the segment id
-                unsigned long component_id = components[iv];
+                uint64_t component_id = components[iv];
 
                 // if this component does not belong yet, add it
                 if (!hash_map.count(component_id)) {
                     hash_map.insert(component_id);
 
                     // add the segment id
-                    unsigned long segment_id = data[iv] + 1;
+                    uint64_t segment_id = data[iv] + 1;
                     ids->push_back(segment_id);
                 }
             }
@@ -240,7 +241,7 @@ IDMapping(unsigned long *components, unsigned long *data, int zres, int yres, in
     return ids;
 }
 
-static unsigned long *
+static uint64_t *
 EncodeBoundaries(bool *boundaries, int zres, int yres, int xres, int zstep, int ystep, int xstep) 
 {
     // determine the number of blocks in the z, y, and x dimensions
@@ -250,7 +251,7 @@ EncodeBoundaries(bool *boundaries, int zres, int yres, int xres, int zstep, int 
 
     // create an empty array for the encodings
     int nblocks = nzblocks * nyblocks * nxblocks;
-    unsigned long *boundary_data = new unsigned long[nblocks]();
+    uint64_t *boundary_data = new uint64_t[nblocks]();
     
     for (int iz = 0; iz < zres; ++iz) {
         for (int iy = 0; iy < yres; ++iy) {
@@ -281,12 +282,12 @@ EncodeBoundaries(bool *boundaries, int zres, int yres, int xres, int zstep, int 
     return boundary_data;    
 }
 
-static std::vector<unsigned long> *
-ValueMapping(unsigned long *boundary_data, int nblocks)
+static std::vector<uint64_t> *
+ValueMapping(uint64_t *boundary_data, int nblocks)
 {
     // get a list of values
-    std::vector<unsigned long> *values = new std::vector<unsigned long>();
-    std::set<unsigned long> hash_map = std::set<unsigned long>();
+    std::vector<uint64_t> *values = new std::vector<uint64_t>();
+    std::set<uint64_t> hash_map = std::set<uint64_t>();
 
     // go through all boundary data to create array of values
     for (int iv = 0; iv < nblocks; ++iv) {
@@ -300,7 +301,7 @@ ValueMapping(unsigned long *boundary_data, int nblocks)
     sort(values->begin(), values->end());
 
     // create mapping from values to indices
-    std::unordered_map<unsigned long, unsigned long> mapping = std::unordered_map<unsigned long, unsigned long>();
+    std::unordered_map<uint64_t, uint64_t> mapping = std::unordered_map<uint64_t, uint64_t>();
     for (unsigned int iv = 0; iv < values->size(); ++iv) {
         mapping[(*values)[iv]] = iv;
     }
@@ -314,15 +315,15 @@ ValueMapping(unsigned long *boundary_data, int nblocks)
     return values;
 }
 
-std::vector<unsigned long> *
-EncodeIndeterminateLocations(bool *boundaries, unsigned long *data, int zres, int yres, int xres)
+std::vector<uint64_t> *
+EncodeIndeterminateLocations(bool *boundaries, uint64_t *data, int zres, int yres, int xres)
 {
     // update global size variables
     row_size = xres;
     sheet_size = yres * xres;
     grid_size = zres * yres * xres;
 
-    std::vector<unsigned long> *locations = new std::vector<unsigned long>();
+    std::vector<uint64_t> *locations = new std::vector<uint64_t>();
 
     int iv = 0;
     for (int iz = 0; iz < zres; ++iz) {
@@ -364,8 +365,8 @@ EncodeIndeterminateLocations(bool *boundaries, unsigned long *data, int zres, in
 }
 
 
-unsigned long *
-Compress(unsigned long *data, int zres, int yres, int xres, int zstep, int ystep, int xstep)
+uint64_t *
+Compress(uint64_t *data, int zres, int yres, int xres, int zstep, int ystep, int xstep)
 {
     // set global variables
     row_size = xres;
@@ -384,18 +385,18 @@ Compress(unsigned long *data, int zres, int yres, int xres, int zstep, int ystep
     bool *boundaries = ExtractBoundaries(data, zres, yres, xres);   
 
     // get the connected components
-    unsigned long *components = ConnectedComponents(boundaries, zres, yres, xres);
+    uint64_t *components = ConnectedComponents(boundaries, zres, yres, xres);
 
-    std::vector<unsigned long> *ids = IDMapping(components, data, zres, yres, xres);
+    std::vector<uint64_t> *ids = IDMapping(components, data, zres, yres, xres);
 
-    unsigned long *boundary_data = EncodeBoundaries(boundaries, zres, yres, xres, zstep, ystep, xstep);
+    uint64_t *boundary_data = EncodeBoundaries(boundaries, zres, yres, xres, zstep, ystep, xstep);
 
-    std::vector<unsigned long> *values = ValueMapping(boundary_data, nblocks);
+    std::vector<uint64_t> *values = ValueMapping(boundary_data, nblocks);
 
-    std::vector<unsigned long> *locations = EncodeIndeterminateLocations(boundaries, data, zres, yres, xres);
+    std::vector<uint64_t> *locations = EncodeIndeterminateLocations(boundaries, data, zres, yres, xres);
 
     unsigned short header_size = 9;
-    unsigned long *compressed_data = new unsigned long[header_size + ids->size() + values->size() + locations->size() + nblocks];
+    uint64_t *compressed_data = new uint64_t[header_size + ids->size() + values->size() + locations->size() + nblocks];
 
     // add the resolution
     compressed_data[0] = zres;
@@ -439,7 +440,7 @@ Compress(unsigned long *data, int zres, int yres, int xres, int zstep, int ystep
 ///////////////////////////////////////////
 
 static bool *
-DecodeBoundaries(unsigned long *boundary_data, std::vector<unsigned long> *values, int zres, int yres, int xres, int zstep, int ystep, int xstep)
+DecodeBoundaries(uint64_t *boundary_data, std::vector<uint64_t> *values, int zres, int yres, int xres, int zstep, int ystep, int xstep)
 {
     int nyblocks = (int)(ceil((double)yres / ystep) + 0.5);
     int nxblocks = (int)(ceil((double)xres / xstep) + 0.5);
@@ -462,7 +463,7 @@ DecodeBoundaries(unsigned long *boundary_data, std::vector<unsigned long> *value
                 int block = zblock * (nyblocks * nxblocks) + yblock * nxblocks + xblock;
                 int offset = zoffset * (ystep * xstep) + yoffset * xstep + xoffset;
 
-                unsigned long value = (*values)[boundary_data[block]];
+                uint64_t value = (*values)[boundary_data[block]];
                 if ((value >> offset) % 2) boundaries[iv] = true;
             }
         }
@@ -471,17 +472,17 @@ DecodeBoundaries(unsigned long *boundary_data, std::vector<unsigned long> *value
     return boundaries;
 }
 
-static unsigned long *
-IDReverseMapping(unsigned long *components, std::vector<unsigned long> *ids, int zres, int yres, int xres)
+static uint64_t *
+IDReverseMapping(uint64_t *components, std::vector<uint64_t> *ids, int zres, int yres, int xres)
 {
-    unsigned long *decompressed_data = new unsigned long[grid_size]();
+    uint64_t *decompressed_data = new uint64_t[grid_size]();
 
     int ids_index = 0;
     for (int iz = 0; iz < zres; ++iz) {
 
         // create mapping (not memory efficient but FAST!!)
         // number of components is guaranteed to be less than ids->size()
-        unsigned long *mapping = new unsigned long[ids->size()]();
+        uint64_t *mapping = new uint64_t[ids->size()]();
 
         for (int iy = 0; iy < yres; ++iy) {
             for (int ix = 0; ix < xres; ++ix) {
@@ -501,7 +502,7 @@ IDReverseMapping(unsigned long *components, std::vector<unsigned long> *ids, int
 }
 
 static void 
-DecodeIndeterminateLocations(bool *boundaries, unsigned long *decompressed_data, std::vector<unsigned long> *locations, int zres, int yres, int xres)
+DecodeIndeterminateLocations(bool *boundaries, uint64_t *decompressed_data, std::vector<uint64_t> *locations, int zres, int yres, int xres)
 {
     int iv = 0;
     int index = 0;
@@ -540,8 +541,8 @@ DecodeIndeterminateLocations(bool *boundaries, unsigned long *decompressed_data,
     }
 }
 
-unsigned long* 
-Decompress(unsigned long *compressed_data)
+uint64_t* 
+Decompress(uint64_t *compressed_data)
 {
     // constants
     int header_size = 9;
@@ -575,10 +576,10 @@ Decompress(unsigned long *compressed_data)
     int nblocks = nzblocks * nyblocks * nxblocks;
 
     // allocate memory for all arrays
-    std::vector<unsigned long> *ids = new std::vector<unsigned long>();
-    std::vector<unsigned long> *values = new std::vector<unsigned long>();
-    std::vector<unsigned long> *locations = new std::vector<unsigned long>();
-    unsigned long *boundary_data = new unsigned long[nblocks];
+    std::vector<uint64_t> *ids = new std::vector<uint64_t>();
+    std::vector<uint64_t> *values = new std::vector<uint64_t>();
+    std::vector<uint64_t> *locations = new std::vector<uint64_t>();
+    uint64_t *boundary_data = new uint64_t[nblocks];
 
     int iv = header_size;
     for (int ix = 0; ix < ids_size; ++ix, ++iv)
@@ -592,9 +593,9 @@ Decompress(unsigned long *compressed_data)
 
     bool *boundaries = DecodeBoundaries(boundary_data, values, zres, yres, xres, zstep, ystep, xstep);
 
-    unsigned long *components = ConnectedComponents(boundaries, zres, yres, xres);
+    uint64_t *components = ConnectedComponents(boundaries, zres, yres, xres);
 
-    unsigned long *decompressed_data = IDReverseMapping(components, ids, zres, yres, xres);
+    uint64_t *decompressed_data = IDReverseMapping(components, ids, zres, yres, xres);
 
     DecodeIndeterminateLocations(boundaries, decompressed_data, locations, zres, yres, xres);
 

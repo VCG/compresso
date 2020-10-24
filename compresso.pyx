@@ -19,10 +19,14 @@ cimport cython
 cimport numpy as np
 import numpy as np
 import ctypes
+from libc.stdint cimport (
+  int8_t, int16_t, int32_t, int64_t,
+  uint8_t, uint16_t, uint32_t, uint64_t,
+)
 
 cdef extern from "compresso.hxx" namespace "compresso":
-    unsigned long *Compress(unsigned long *data, int zres, int yres, int xres, int zstep, int ystep, int xstep)
-    unsigned long *Decompress(unsigned long *compressed_data)
+    uint64_t *Compress(uint64_t *data, int zres, int yres, int xres, int zstep, int ystep, int xstep)
+    uint64_t *Decompress(uint64_t *compressed_data)
 
 def compress(data):
     """
@@ -44,11 +48,11 @@ def compress(data):
     nblocks = nzblocks * nyblocks * nxblocks
 
     # call the Cython function
-    cdef np.ndarray[unsigned long, ndim=3, mode='c'] cpp_data
+    cdef np.ndarray[uint64_t, ndim=3, mode='c'] cpp_data
     cpp_data = np.ascontiguousarray(data, dtype=ctypes.c_uint64)
-    cdef unsigned long *cpp_compressed_data = Compress(&(cpp_data[0,0,0]), zres, yres, xres, zstep, ystep, xstep)
+    cdef uint64_t *cpp_compressed_data = Compress(&(cpp_data[0,0,0]), zres, yres, xres, zstep, ystep, xstep)
     length = header_size + cpp_compressed_data[3] + cpp_compressed_data[4] + cpp_compressed_data[5] + nblocks
-    cdef unsigned long[:] tmp_compressed_data = <unsigned long[:length]> cpp_compressed_data
+    cdef uint64_t[:] tmp_compressed_data = <uint64_t[:length]> cpp_compressed_data
     compressed_data = np.asarray(tmp_compressed_data)
 
     # compress all the zeros in the window values
@@ -126,11 +130,11 @@ def decompress(data):
 
     data = np.concatenate((intro_data, block_data))
 
-    cdef np.ndarray[unsigned long, ndim=1, mode='c'] cpp_data
+    cdef np.ndarray[uint64_t, ndim=1, mode='c'] cpp_data
     cpp_data = np.ascontiguousarray(data, dtype=ctypes.c_uint64)
     n = zres * yres * xres
 
-    cdef unsigned long[:] cpp_decompressed_data = <unsigned long[:n]> Decompress(&(cpp_data[0]))
+    cdef uint64_t[:] cpp_decompressed_data = <uint64_t[:n]> Decompress(&(cpp_data[0]))
     decompressed_data = np.reshape(np.asarray(cpp_decompressed_data), (zres, yres, xres))
 
     return decompressed_data
