@@ -257,8 +257,20 @@ OUT* connected_components2d_4(
 uint64_t* connected_components2d(
   bool* in_labels, const int64_t sx, const int64_t sy, const int64_t sz
 ) {
-  size_t max_labels = (sx * sy + 2) / 2 * sz + 2;
-  return connected_components2d_4<bool, uint64_t>(in_labels, sx, sy, sz, max_labels);
+
+  const int64_t sxy = sx * sy;
+  const int64_t voxels = sxy * sz;
+
+  const size_t max_labels = (sx * sy + 2) / 2 * sz + 2;
+  uint64_t* out_labels = new uint64_t[voxels]();
+
+  for (int64_t z = 0; z < sz; z++) {
+    connected_components2d_4<bool, uint64_t>(
+      (in_labels + sxy * z), sx, sy, 1, max_labels, (out_labels + sxy * z)
+    );
+  }
+
+  return out_labels;
 }
 
 
