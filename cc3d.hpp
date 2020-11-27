@@ -257,7 +257,7 @@ OUT* connected_components2d_4(
 uint64_t* connected_components2d(
   bool* in_labels, const int64_t sx, const int64_t sy, const int64_t sz
 ) {
-  size_t max_labels = (sx * sy) / 2 * sz + 2;
+  size_t max_labels = (sx * sy + 2) / 2 * sz + 2;
   return connected_components2d_4<bool, uint64_t>(in_labels, sx, sy, sz, max_labels);
 }
 

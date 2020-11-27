@@ -237,7 +237,7 @@ uint64_t* Compress(
     std::vector<uint64_t> *locations = EncodeIndeterminateLocations(boundaries, data, sx, sy, sz);
 
     unsigned short header_size = 9;
-    uint64_t *compressed_data = new uint64_t[header_size + ids->size() + values->size() + locations->size() + nblocks];
+    uint64_t *compressed_data = new uint64_t[header_size + ids->size() + values->size() + locations->size() + nblocks]();
 
     // add the resolution
     compressed_data[0] = sz;
@@ -330,14 +330,10 @@ uint64_t* IDReverseMapping(
     const size_t voxels = sxy * sz;
 
     uint64_t *decompressed_data = new uint64_t[voxels]();
-
+    
     size_t ids_index = 0;
-    for (size_t z = 0; z < sz; ++z) {
-
-        // create mapping (not memory efficient but FAST!!)
-        // number of components is guaranteed to be less than ids->size()
+    for (size_t z = 0; z < sz; z++) {
         uint64_t *mapping = new uint64_t[ids->size()]();
-
         for (size_t y = 0; y < sy; ++y) {
             for (size_t x = 0; x < sz; ++x) {
                 size_t iv = x + sx * y + sxy * z;
@@ -350,6 +346,8 @@ uint64_t* IDReverseMapping(
                 decompressed_data[iv] = mapping[components[iv]] - 1;
             }
         }
+        
+        delete[] mapping;
     }
 
     return decompressed_data;
