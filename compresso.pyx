@@ -25,7 +25,11 @@ from libc.stdint cimport (
 )
 
 cdef extern from "compresso.hxx" namespace "compresso":
-    uint64_t *Compress(uint64_t *data, int zres, int yres, int xres, int zstep, int ystep, int xstep)
+    uint64_t *Compress(
+        uint64_t *data, 
+        size_t zres, size_t yres, size_t xres, 
+        size_t zstep, size_t ystep, size_t xstep
+    )
     uint64_t *Decompress(uint64_t *compressed_data)
 
 def compress(data):
@@ -38,26 +42,27 @@ def compress(data):
     from math import ceil
 
     # reshape the data into one dimension
-    zres, yres, xres = data.shape
+    sx, sy, sz = data.shape
     (zstep, ystep, xstep) = (1, 8, 8)
     header_size = 9
 
-    nzblocks = int(ceil(float(zres) / zstep))
-    nyblocks = int(ceil(float(yres) / ystep))
-    nxblocks = int(ceil(float(xres) / xstep))
+    nzblocks = int(ceil(float(sz) / zstep))
+    nyblocks = int(ceil(float(sy) / ystep))
+    nxblocks = int(ceil(float(sx) / xstep))
     nblocks = nzblocks * nyblocks * nxblocks
 
     # call the Cython function
-    cdef np.ndarray[uint64_t, ndim=3, mode='c'] cpp_data
-    cpp_data = np.ascontiguousarray(data, dtype=ctypes.c_uint64)
-    cdef uint64_t *cpp_compressed_data = Compress(&(cpp_data[0,0,0]), zres, yres, xres, zstep, ystep, xstep)
+    cdef np.ndarray[uint64_t, ndim=3] cpp_data = np.asfortranarray(data, dtype=np.uint64)
+    cdef uint64_t *cpp_compressed_data = Compress(
+        &(cpp_data[0,0,0]), sz, sy, sx, zstep, ystep, xstep
+    )
     length = header_size + cpp_compressed_data[3] + cpp_compressed_data[4] + cpp_compressed_data[5] + nblocks
     cdef uint64_t[:] tmp_compressed_data = <uint64_t[:length]> cpp_compressed_data
     compressed_data = np.asarray(tmp_compressed_data)
 
     # compress all the zeros in the window values
 
-    nblocks = int(ceil(float(zres) / zstep)) * int(ceil(float(yres) / ystep)) * int(ceil(float(xres) / xstep))
+    nblocks = int(ceil(float(sz) / zstep)) * int(ceil(float(sy) / ystep)) * int(ceil(float(sx) / xstep))
     
     intro_data = compressed_data[:-nblocks]
     block_data = compressed_data[-nblocks:]
@@ -97,9 +102,9 @@ def decompress(data):
     # read the first nine bytes corresponding to the header
     header = np.frombuffer(data[0:72], dtype=np.uint64)
 
-    zres = header[0]
-    yres = header[1]
-    xres = header[2]
+    sz = header[0]
+    sy = header[1]
+    sx = header[2]
     ids_size = int(header[3])
     values_size = int(header[4])
     locations_size = int(header[5])
@@ -112,7 +117,7 @@ def decompress(data):
     intro_data = np.frombuffer(data[0:intro_size*8], dtype=np.uint64)
 
     # get the compressed blocks
-    nblocks = int(ceil(float(zres) / zstep)) * int(ceil(float(yres) / ystep)) * int(ceil(float(xres) / xstep))
+    nblocks = int(ceil(float(sz) / zstep)) * int(ceil(float(sy) / ystep)) * int(ceil(float(sx) / xstep))
     compressed_blocks = np.frombuffer(data[intro_size*8:], dtype=np.uint32)
     block_data = np.zeros(nblocks, dtype=np.uint64)
 
@@ -130,11 +135,11 @@ def decompress(data):
 
     data = np.concatenate((intro_data, block_data))
 
-    cdef np.ndarray[uint64_t, ndim=1, mode='c'] cpp_data
-    cpp_data = np.ascontiguousarray(data, dtype=ctypes.c_uint64)
-    n = zres * yres * xres
+    cdef np.ndarray[uint64_t, ndim=1] cpp_data
+    cpp_data = np.asfortranarray(data, dtype=np.uint64)
+    voxels = sx * sy * sz
 
-    cdef uint64_t[:] cpp_decompressed_data = <uint64_t[:n]> Decompress(&(cpp_data[0]))
-    decompressed_data = np.reshape(np.asarray(cpp_decompressed_data), (zres, yres, xres))
+    cdef uint64_t[:] cpp_decompressed_data = <uint64_t[:voxels]> Decompress(&(cpp_data[0]))
+    decompressed_data = np.reshape(np.asarray(cpp_decompressed_data), (sx, sy, sz))
 
     return decompressed_data
