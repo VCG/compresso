@@ -346,7 +346,7 @@ uint64_t* IDReverseMapping(
                 decompressed_data[iv] = mapping[components[iv]] - 1;
             }
         }
-        
+
         delete[] mapping;
     }
 
@@ -414,22 +414,22 @@ void DecodeIndeterminateLocations(
 
 uint64_t* Decompress(uint64_t *compressed_data) {
     // constants
-    int header_size = 9;
+    const int header_size = 9;
 
     // get the resolution
-    size_t sz = compressed_data[0];
-    size_t sy = compressed_data[1];
-    size_t sx = compressed_data[2];
+    const size_t sz = compressed_data[0];
+    const size_t sy = compressed_data[1];
+    const size_t sx = compressed_data[2];
 
     // get the size of the vectors
-    size_t ids_size = compressed_data[3];
-    size_t values_size = compressed_data[4];
-    size_t locations_size = compressed_data[5];
+    const size_t ids_size = compressed_data[3];
+    const size_t values_size = compressed_data[4];
+    const size_t locations_size = compressed_data[5];
 
-    size_t zstep = compressed_data[6];
-    size_t ystep = compressed_data[7];
-    size_t xstep = compressed_data[8];
-
+    const size_t zstep = compressed_data[6];
+    const size_t ystep = compressed_data[7];
+    const size_t xstep = compressed_data[8];
+    
     const size_t nzblocks = (sz + (zstep / 2)) / zstep;
     const size_t nyblocks = (sy + (ystep / 2)) / ystep;
     const size_t nxblocks = (sx + (xstep / 2)) / xstep;

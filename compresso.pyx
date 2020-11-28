@@ -27,8 +27,8 @@ from libc.stdint cimport (
 cdef extern from "compresso.hxx" namespace "compresso":
     uint64_t *Compress(
         uint64_t *data, 
-        size_t zres, size_t yres, size_t xres, 
-        size_t zstep, size_t ystep, size_t xstep
+        size_t sx, size_t sy, size_t sz, 
+        size_t xstep, size_t ystep, size_t zstep
     )
     uint64_t *Decompress(uint64_t *compressed_data)
 
@@ -51,10 +51,9 @@ def compress(data):
     nxblocks = int(ceil(float(sx) / xstep))
     nblocks = nzblocks * nyblocks * nxblocks
 
-    # call the Cython function
     cdef np.ndarray[uint64_t, ndim=3] cpp_data = np.asfortranarray(data, dtype=np.uint64)
     cdef uint64_t *cpp_compressed_data = Compress(
-        &(cpp_data[0,0,0]), sz, sy, sx, zstep, ystep, xstep
+        &(cpp_data[0,0,0]), sx, sy, sz, xstep, ystep, zstep
     )
     length = header_size + cpp_compressed_data[3] + cpp_compressed_data[4] + cpp_compressed_data[5] + nblocks
     cdef uint64_t[:] tmp_compressed_data = <uint64_t[:length]> cpp_compressed_data
@@ -102,9 +101,11 @@ def decompress(data):
     # read the first nine bytes corresponding to the header
     header = np.frombuffer(data[0:72], dtype=np.uint64)
 
-    sz = header[0]
-    sy = header[1]
-    sx = header[2]
+    cdef size_t sz = header[0]
+    cdef size_t sy = header[1]
+    cdef size_t sx = header[2]
+    cdef size_t voxels = sx * sy * sz
+    
     ids_size = int(header[3])
     values_size = int(header[4])
     locations_size = int(header[5])
@@ -135,10 +136,7 @@ def decompress(data):
 
     data = np.concatenate((intro_data, block_data))
 
-    cdef np.ndarray[uint64_t, ndim=1] cpp_data
-    cpp_data = np.asfortranarray(data, dtype=np.uint64)
-    voxels = sx * sy * sz
-
+    cdef np.ndarray[uint64_t, ndim=1] cpp_data = np.asfortranarray(data, dtype=np.uint64)
     cdef uint64_t[:] cpp_decompressed_data = <uint64_t[:voxels]> Decompress(&(cpp_data[0]))
     decompressed_data = np.reshape(np.asarray(cpp_decompressed_data), (sx, sy, sz))
 
