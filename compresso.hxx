@@ -1,8 +1,9 @@
-#ifndef __COMPRESSO_H__
-#define __COMPRESSO_H__
+#ifndef __COMPRESSO_HXX__
+#define __COMPRESSO_HXX__
 
 #include <unordered_map>
 #include <set>
+#include <limits>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -10,77 +11,197 @@
 #include <stdio.h>
 #include "cc3d.hpp"
 
-
 namespace compresso {
 
-/////////////////////////////////////////
-//// COMPRESSO COMPRESSION ALGORITHM ////
-/////////////////////////////////////////
+// little endian serialization of integers to chars
+// returns bytes written
+inline size_t itoc(uint8_t x, std::vector<unsigned char> &buf, size_t idx) {
+	buf[idx] = x;
+	return 1;
+}
 
-bool* ExtractBoundaries(
-    uint64_t *data, 
-    const size_t sx, const size_t sy, const size_t sz
+inline size_t itoc(uint16_t x, std::vector<unsigned char> &buf, size_t idx) {
+	buf[idx + 0] = x & 0xFF;
+	buf[idx + 1] = (x >> 8) & 0xFF;
+	return 2;
+}
+
+inline size_t itoc(uint32_t x, std::vector<unsigned char> &buf, size_t idx) {
+	buf[idx + 0] = x & 0xFF;
+	buf[idx + 1] = (x >> 8) & 0xFF;
+	buf[idx + 2] = (x >> 16) & 0xFF;
+	buf[idx + 3] = (x >> 24) & 0xFF;
+	return 4;
+}
+
+inline size_t itoc(uint64_t x, std::vector<unsigned char> &buf, size_t idx) {
+	buf[idx + 0] = x & 0xFF;
+	buf[idx + 1] = (x >> 8) & 0xFF;
+	buf[idx + 2] = (x >> 16) & 0xFF;
+	buf[idx + 3] = (x >> 24) & 0xFF;
+	buf[idx + 4] = (x >> 32) & 0xFF;
+	buf[idx + 5] = (x >> 40) & 0xFF;
+	buf[idx + 6] = (x >> 48) & 0xFF;
+	buf[idx + 7] = (x >> 56) & 0xFF;
+	return 8;
+}
+
+/* Header: 
+ *   'cpso'            : magic number (4 bytes)
+ *   format version    : unsigned integer (1 byte) 
+ *   data width        : unsigned integer (1 byte) (1: uint8, ... 8: uint64)
+ *   sx, sy, sz        : size of each dimension (2 bytes x3)
+ *   xstep,ystep,zstep : size of each grid (1 byte x 3) (typical values: 4, 8)
+ *   id_size          : number of uniq labels (u64) (could be one per voxel)
+ *   value_size       : number of values (u32)
+ *   location_size    : number of locations (u64)
+ */
+struct CompressoHeader {
+public:
+	static constexpr size_t header_size{35};
+
+	static constexpr char magic[]{ "cpso" }; 
+	static constexpr uint8_t format_version{0};
+	uint8_t data_width;
+	uint16_t sx;
+	uint16_t sy;
+	uint16_t sz;
+	uint8_t xstep; // 4 bits each to x and y (we only use 4 and 8 anyway)
+	uint8_t ystep; // 4 bits each to x and y (we only use 4 and 8 anyway)
+	uint8_t zstep; // 4 bits each to x and y (we only use 4 and 8 anyway)
+	uint64_t id_size; // label per connected component 
+	uint32_t value_size; // boundary encodings (less than size / 16 or size / 64)
+	uint64_t location_size; // remapped labels
+
+	CompressoHeader() :
+		data_width(8), 
+		sx(1), sy(1), sz(1), 
+		xstep(8), ystep(8), zstep(1),
+		id_size(0), value_size(0), location_size(0)
+	{}
+
+	CompressoHeader(
+		const uint8_t _data_width,
+		const uint16_t _sx, const uint16_t _sy, const uint16_t _sz,
+		const uint8_t _xstep = 8, const uint8_t _ystep = 8, const uint8_t _zstep = 1,
+		const uint64_t _id_size = 0, const uint32_t _value_size = 0, 
+		const uint64_t _location_size = 0
+	) : 
+		data_width(_data_width), 
+		sx(_sx), sy(_sy), sz(_sz), 
+		xstep(_xstep), ystep(_ystep), zstep(_zstep),
+		id_size(_id_size), value_size(_value_size), location_size(_location_size)
+	{}
+
+	size_t tochars(std::vector<unsigned char> &buf, size_t idx = 0) {
+		if ((idx + CompressoHeader::header_size) >= buf.size()) {
+			throw std::runtime_error("Unable to write past end of buffer.");
+		}
+
+		size_t i = idx;
+		for (int j = 0; j < 4; j++, i++) {
+			buf[i] = magic[j];
+		}
+
+		i += itoc(format_version, buf, i);
+		i += itoc(data_width, buf, i);
+		i += itoc(sx, buf, i);
+		i += itoc(sy, buf, i);
+		i += itoc(sz, buf, i);
+		i += itoc(xstep, buf, i);
+		i += itoc(ystep, buf, i);
+		i += itoc(zstep, buf, i);
+		i += itoc(id_size, buf, i);
+		i += itoc(value_size, buf, i);
+		i += itoc(location_size, buf, i);
+
+		return i - idx;
+	}
+};
+
+
+// false = boundary, true = not boundary
+template <typename T>
+bool* extract_boundaries(
+	T *data, 
+	const size_t sx, const size_t sy, const size_t sz
+) {
+	const size_t sxy = sx * sy;
+	const size_t voxels = sxy * sz;
+	bool *boundaries = new bool[voxels]();
+	if (!boundaries) { 
+		fprintf(stderr, "Failed to allocate memory for boundaries.\n"); 
+		exit(-1); 
+	}
+
+	for (size_t z = 0; z < sz; z++) {
+		for (size_t y = 0; y < sy; y++) {
+			for (size_t x = 0; x < sx; x++) {
+				size_t loc = x + sx * y + sxy * z;
+				boundaries[loc] = true;
+
+				// check the east neighbor
+				if (x < sx - 1 && data[loc] != data[loc + 1]) { 
+					boundaries[loc] = false;
+				}
+				// check the south neighbor
+				else if (y < sy - 1 && data[loc] != data[loc + sx]) {
+					boundaries[loc] = false;
+				}
+			}
+		}
+	}
+
+	return boundaries;
+}
+
+template <typename T>
+std::vector<T> component_map(
+    uint32_t *components, T *labels, 
+    const size_t sx, const size_t sy, const size_t sz,
+    const size_t num_components = 100
 ) {
     const size_t sxy = sx * sy;
     const size_t voxels = sxy * sz;
-    bool *boundaries = new bool[voxels]();
-    if (!boundaries) { 
-        fprintf(stderr, "Failed to allocate memory for boundaries...\n"); exit(-1); 
+
+    std::vector<T> ids;
+    ids.reserve(num_components);
+
+    if (voxels == 0) {
+    	return ids;
     }
-
-    for (size_t z = 0; z < sz; z++) {
-        for (size_t y = 0; y < sy; y++) {
-            for (size_t x = 0; x < sx; x++) {
-                size_t loc = x + sx * y + sxy * z;
-                boundaries[loc] = false;
-
-                // check the east neighbor
-                if (x < sx - 1 && data[loc] != data[loc + 1]) { 
-                    boundaries[loc] = true;
-                }
-                // check the south neighbor
-                else if (y < sy - 1 && data[loc] != data[loc + sx]) {
-                    boundaries[loc] = true;
-                }
-            }
-        }
-    }
-
-    return boundaries;
-}
-
-std::vector<uint64_t>* IDMapping(
-    uint64_t *components, uint64_t *data, 
-    const size_t sx, const size_t sy, const size_t sz
-) {
-    const size_t sxy = sx * sy;
-
-    std::vector<uint64_t> *ids = new std::vector<uint64_t>();
 
     size_t loc = 0;
-    for (size_t z = 0; z < sz; ++z) {
-        std::set<uint64_t> hash_map = std::set<uint64_t>();
+    for (size_t z = 0; z < sz; z++) {
+      std::set<T> hash_map;
+      loc = z * sxy;
+      T last_label = components[loc];
+      hash_map.insert(components[loc]);
+      ids.push_back(labels[loc] + 1);
 
-        for (size_t y = 0; y < sy; ++y) {
-            for (size_t x = 0; x < sx; ++x) {
-                loc = x + sx * y + sxy * z;
+      for (size_t y = 0; y < sy; y++) {
+        for (size_t x = 0; x < sx; x++) {
+          loc = x + sx * y + sxy * z;
 
-                uint64_t component_id = components[loc];
+          if (last_label == components[loc]) {
+          	continue;
+          }
 
-                // if this component does not belong yet, add it
-                if (!hash_map.count(component_id)) {
-                    hash_map.insert(component_id);
-                    uint64_t segment_id = data[loc] + 1;
-                    ids->push_back(segment_id);
-                }
-            }
+          bool inserted = hash_map.insert(components[loc]).second;
+          if (inserted) {
+            ids.push_back(labels[loc] + 1);
+          }
+
+          last_label = components[loc];
         }
+      }
     }
 
     return ids;
 }
 
-uint64_t* EncodeBoundaries(
+template <typename T>
+std::vector<T> encode_boundaries(
     bool *boundaries, 
     const size_t sx, const size_t sy, const size_t sz, 
     const size_t xstep, const size_t ystep, const size_t zstep
@@ -88,391 +209,286 @@ uint64_t* EncodeBoundaries(
 
     const size_t sxy = sx * sy;
 
-    const size_t nzblocks = (sz + (zstep / 2)) / zstep;
-    const size_t nyblocks = (sy + (ystep / 2)) / ystep;
-    const size_t nxblocks = (sx + (xstep / 2)) / xstep;
-    const size_t nblocks = nzblocks * nyblocks * nxblocks;
+    const size_t nz = (sz + (zstep / 2)) / zstep;
+    const size_t ny = (sy + (ystep / 2)) / ystep;
+    const size_t nx = (sx + (xstep / 2)) / xstep;
+    const size_t nblocks = nz * ny * nx;
 
-    uint64_t *boundary_data = new uint64_t[nblocks]();
+    std::vector<T> boundary_data(nblocks);
     
     size_t xblock, yblock, zblock;
     size_t xoffset, yoffset, zoffset;
 
+    // all these divisions can be replaced by plus/minus
     for (size_t z = 0; z < sz; z++) {
-        zblock = z / zstep;
-        zoffset = z % zstep;
-        for (size_t y = 0; y < sy; y++) {
-            yblock = y / ystep;
-            yoffset = y % ystep;
-            for (size_t x = 0; x < sx; x++) {
-                size_t loc = x + sx * y + sxy * z;
+      zblock = z / zstep;
+      zoffset = z % zstep;
+      for (size_t y = 0; y < sy; y++) {
+        yblock = y / ystep;
+        yoffset = y % ystep;
+        for (size_t x = 0; x < sx; x++) {
+          size_t loc = x + sx * y + sxy * z;
 
-                if (!boundaries[loc]) { 
-                    continue; 
-                }
+          // boundaries == false is the actual boundaries
+          // b/c we used cc3d which treats black as bg instead 
+          // of white
+          if (boundaries[loc]) { 
+            continue; 
+          }
 
-                xblock = x / xstep;
-                xoffset = x % xstep;
+          xblock = x / xstep;
+          xoffset = x % xstep;
 
-                size_t block = xblock + nxblocks * yblock + (nyblocks * nxblocks) * zblock;
-                size_t offset = xoffset + xstep * yoffset + (ystep * xstep) * zoffset;
+          size_t block = xblock + nx * yblock + (ny * nx) * zblock;
+          size_t offset = xoffset + xstep * yoffset + (ystep * xstep) * zoffset;
 
-                boundary_data[block] += (1LU << offset);
-            }
+          boundary_data[block] += (1LU << offset);
         }
+      }
     }
 
     return boundary_data;    
 }
 
-std::vector<uint64_t>* ValueMapping(uint64_t *boundary_data, int nblocks) {
-    std::vector<uint64_t> *values = new std::vector<uint64_t>();
-    std::set<uint64_t> hash_map = std::set<uint64_t>();
-
-    // go through all boundary data to create array of values
-    for (int iv = 0; iv < nblocks; ++iv) {
-        if (!hash_map.count(boundary_data[iv])) {
-            hash_map.insert(boundary_data[iv]);
-            values->push_back(boundary_data[iv]);
-        }
-    }
-
-    sort(values->begin(), values->end());
-
-    // create mapping from values to indices
-    std::unordered_map<uint64_t, uint64_t> mapping = std::unordered_map<uint64_t, uint64_t>();
-    for (unsigned int iv = 0; iv < values->size(); ++iv) {
-        mapping[(*values)[iv]] = iv;
-    }
-
-    // update boundary data
-    for (int iv = 0; iv < nblocks; ++iv) {
-        boundary_data[iv] = mapping[boundary_data[iv]];
-    }
-
-    return values;
-}
-
-std::vector<uint64_t>* EncodeIndeterminateLocations(
-    bool *boundaries, uint64_t *data, 
+template <typename T>
+std::vector<T> encode_indeterminate_locations(
+    bool *boundaries, T *labels, 
     const size_t sx, const size_t sy, const size_t sz
 ) {
-    const size_t sxy = sx * sy;
-    std::vector<uint64_t> *locations = new std::vector<uint64_t>();
+  const size_t sxy = sx * sy;
+  std::vector<T> locations(sx * sy * sz);
 
-    int iv = 0;
-    for (size_t z = 0; z < sz; z++) {
-        for (size_t y = 0; y < sy; y++) {
-            for (size_t x = 0; x < sx; x++, iv++) {
-                size_t loc = x + sx * y + sxy * z;
+  int64_t iv = 0;
+  for (size_t z = 0; z < sz; z++) {
+    for (size_t y = 0; y < sy; y++) {
+      for (size_t x = 0; x < sx; x++, iv++) {
+        size_t loc = x + sx * y + sxy * z;
 
-                if (!boundaries[loc]) { 
-                    continue; 
-                }
-                else if (y > 0 && !boundaries[loc - sx]) {
-                    continue; // boundaries[iv] = 0;
-                }
-                else if (x > 0 && !boundaries[loc - 1]) {
-                    continue; // boundaries[iv] = 0;
-                }
-                
-                size_t north = loc - 1; // IndicesToIndex(ix - 1, iy, iz);
-                size_t south = loc + 1; // IndicesToIndex(ix + 1, iy, iz);
-                size_t east = loc - sx;// IndicesToIndex(ix, iy - 1, iz);
-                size_t west = loc + sx; // IndicesToIndex(ix, iy + 1, iz);
-                size_t up = loc + sxy; // IndicesToIndex(ix, iy, iz + 1);
-                size_t down = loc - sxy; // IndicesToIndex(ix, iy, iz - 1);
-
-                // see if any of the immediate neighbors are candidates
-                if (x > 0 && !boundaries[north] && data[north] == data[iv]) {
-                    locations->push_back(0);
-                }
-                else if (x < sx - 1 && !boundaries[south] && data[south] == data[iv]) {
-                    locations->push_back(1);
-                }
-                else if (y > 0 && !boundaries[east] && data[east] == data[iv]){
-                    locations->push_back(2);
-                }
-                else if (y < sy - 1 && !boundaries[west] && data[west] == data[iv]) {
-                    locations->push_back(3);
-                }
-                else if (z > 0 && !boundaries[down] && data[down] == data[iv]) {
-                    locations->push_back(4);
-                }
-                else if (z < sz - 1 && !boundaries[up] && data[up] == data[iv]) {
-                    locations->push_back(5);
-                }
-                else {
-                    locations->push_back(data[loc] + 6);
-                }
-            }
+        if (!boundaries[loc]) { 
+          continue; 
         }
-    }
-
-    return locations;
-}
-
-uint64_t* Compress(
-    uint64_t *data, 
-    const size_t sx, const size_t sy, const size_t sz,
-    const size_t xstep, const size_t ystep, const size_t zstep
-) {
-    const size_t nzblocks = (sz + (zstep / 2)) / zstep;
-    const size_t nyblocks = (sy + (ystep / 2)) / ystep;
-    const size_t nxblocks = (sx + (xstep / 2)) / xstep;
-
-    const size_t nblocks = nzblocks * nyblocks * nxblocks;
-
-    // get boundary voxels
-    bool *boundaries = ExtractBoundaries(data, sx, sy, sz);   
-
-    uint64_t *components = cc3d::connected_components2d(boundaries, sx, sy, sz);
-    std::vector<uint64_t> *ids = IDMapping(components, data, sx, sy, sz);
-    delete[] components;
-    
-    uint64_t *boundary_data = EncodeBoundaries(boundaries, sx, sy, sz, xstep, ystep, zstep);
-
-    std::vector<uint64_t> *values = ValueMapping(boundary_data, nblocks);
-
-    std::vector<uint64_t> *locations = EncodeIndeterminateLocations(boundaries, data, sx, sy, sz);
-
-    unsigned short header_size = 9;
-    uint64_t *compressed_data = new uint64_t[header_size + ids->size() + values->size() + locations->size() + nblocks]();
-
-    // add the resolution
-    compressed_data[0] = sz;
-    compressed_data[1] = sy;
-    compressed_data[2] = sx;
-
-    // add the sizes of the vectors
-    compressed_data[3] = ids->size();
-    compressed_data[4] = values->size();
-    compressed_data[5] = locations->size();
-
-    compressed_data[6] = zstep;
-    compressed_data[7] = ystep;
-    compressed_data[8] = xstep;
-
-    size_t iv = header_size;
-    for (size_t ix = 0 ; ix < ids->size(); ++ix, ++iv) {
-        compressed_data[iv] = (*ids)[ix];
-    }
-    for (size_t ix = 0; ix < values->size(); ++ix, ++iv) {
-        compressed_data[iv] = (*values)[ix];
-    }
-    for (size_t ix = 0; ix < locations->size(); ++ix, ++iv) {
-        compressed_data[iv] = (*locations)[ix];
-    }
-    for (size_t ix = 0; ix < nblocks; ++ix, ++iv) {
-        compressed_data[iv] = boundary_data[ix];
-    }
-
-    delete[] boundaries;
-    delete ids;
-    delete[] boundary_data;
-    delete values;
-    delete locations;
-
-    return compressed_data;
-}
-
-///////////////////////////////////////////
-//// COMPRESSO DECOMPRESSION ALGORITHM ////
-///////////////////////////////////////////
-
-bool* DecodeBoundaries(
-    uint64_t *boundary_data, std::vector<uint64_t> *values, 
-    const size_t sx, const size_t sy, const size_t sz,
-    const size_t xstep, const size_t ystep, const size_t zstep
-) {
-
-    const size_t sxy = sx * sy;
-    const size_t voxels = sx * sy * sz;
-
-    const size_t nyblocks = (sy + (ystep / 2)) / ystep;
-    const size_t nxblocks = (sx + (xstep / 2)) / xstep;
-
-    bool *boundaries = new bool[voxels]();
-
-    size_t xblock, yblock, zblock;
-    size_t xoffset, yoffset, zoffset;
-
-    for (size_t z = 0; z < sz; ++z) {
-        zblock = z / zstep;
-        zoffset = z % zstep;
-        for (size_t y = 0; y < sy; ++y) {
-            yblock = y / ystep;
-            yoffset = y % ystep;
-            for (size_t x = 0; x < sx; ++x) {
-                size_t iv = x + sx * y + sxy * z;
-                xblock = x / xstep;
-                xoffset = x % xstep;
-
-                size_t block = zblock * (nyblocks * nxblocks) + yblock * nxblocks + xblock;
-                size_t offset = zoffset * (ystep * xstep) + yoffset * xstep + xoffset;
-
-                uint64_t value = (*values)[boundary_data[block]];
-                if ((value >> offset) & 0b1) { 
-                    boundaries[iv] = true;
-                }
-            }
+        else if (y > 0 && !boundaries[loc - sx]) {
+          continue; // boundaries[iv] = 0;
         }
-    }
-
-    return boundaries;
-}
-
-uint64_t* IDReverseMapping(
-    uint64_t *components, std::vector<uint64_t> *ids, 
-    const size_t sx, const size_t sy, const size_t sz
-) {
-    const size_t sxy = sx * sy;
-    const size_t voxels = sxy * sz;
-
-    uint64_t *decompressed_data = new uint64_t[voxels]();
-    
-    size_t ids_index = 0;
-    for (size_t z = 0; z < sz; z++) {
-        uint64_t *mapping = new uint64_t[ids->size()]();
-        for (size_t y = 0; y < sy; ++y) {
-            for (size_t x = 0; x < sz; ++x) {
-                size_t iv = x + sx * y + sxy * z;
-
-                if (!mapping[components[iv]]) {
-                    mapping[components[iv]] = (*ids)[ids_index];
-                    ids_index++;
-                }
-
-                decompressed_data[iv] = mapping[components[iv]] - 1;
-            }
+        else if (x > 0 && !boundaries[loc - 1]) {
+          continue; // boundaries[iv] = 0;
         }
+        
+        size_t north = loc - 1; // IndicesToIndex(ix - 1, iy, iz);
+        size_t south = loc + 1; // IndicesToIndex(ix + 1, iy, iz);
+        size_t east = loc - sx;// IndicesToIndex(ix, iy - 1, iz);
+        size_t west = loc + sx; // IndicesToIndex(ix, iy + 1, iz);
+        size_t up = loc + sxy; // IndicesToIndex(ix, iy, iz + 1);
+        size_t down = loc - sxy; // IndicesToIndex(ix, iy, iz - 1);
 
-        delete[] mapping;
-    }
-
-    return decompressed_data;
-}
-
-void DecodeIndeterminateLocations(
-    bool *boundaries, uint64_t *decompressed_data, 
-    std::vector<uint64_t> *locations, 
-    const size_t sx, const size_t sy, const size_t sz
-) {
-    const size_t sxy = sx * sy;
-
-    size_t iv = 0;
-    size_t index = 0;
-
-    // go through all coordinates
-    for (size_t z = 0; z < sz; z++) {
-        for (size_t y = 0; y < sy; y++) {
-            for (size_t x = 0; x < sx; x++, iv++) {
-                size_t loc = x + sx * y + sxy * z;
-                size_t north = loc - 1;
-                size_t west = loc - sx;
-
-                if (!boundaries[iv]) {
-                    continue;
-                }
-                else if (x > 0 && !boundaries[north]) {
-                    decompressed_data[iv] = decompressed_data[north];
-                    // boundaries[iv] = 0;
-                }
-                else if (y > 0 && !boundaries[west]) {
-                    decompressed_data[iv] = decompressed_data[west];
-                    // boundaries[iv] = 0;
-                }
-                else {
-                    size_t offset = (*locations)[index];
-                    if (offset == 0) {
-                        decompressed_data[iv] = decompressed_data[loc - 1];
-                    }
-                    else if (offset == 1) {
-                        decompressed_data[iv] = decompressed_data[loc + 1];
-                    }
-                    else if (offset == 2) {
-                        decompressed_data[iv] = decompressed_data[loc - sx];
-                    }
-                    else if (offset == 3) {
-                        decompressed_data[iv] = decompressed_data[loc + sx];
-                    }
-                    else if (offset == 4) {
-                        decompressed_data[iv] = decompressed_data[loc - sxy];
-                    }
-                    else if (offset == 5) {
-                        decompressed_data[iv] = decompressed_data[loc + sxy];
-                    }
-                    else {
-                        decompressed_data[iv] = offset - 6;                        
-                    }
-                    index += 1;
-                }
-            }
+        // see if any of the immediate neighbors are candidates
+        if (x > 0 && !boundaries[north] && (labels[north] == labels[iv])) {
+          locations.push_back(0);
         }
+        else if (x < sx - 1 && !boundaries[south] && (labels[south] == labels[iv])) {
+          locations.push_back(1);
+        }
+        else if (y > 0 && !boundaries[east] && (labels[east] == labels[iv])) {
+          locations.push_back(2);
+        }
+        else if (y < sy - 1 && !boundaries[west] && (labels[west] == labels[iv])) {
+          locations.push_back(3);
+        }
+        else if (z > 0 && !boundaries[down] && (labels[down] == labels[iv])) {
+          locations.push_back(4);
+        }
+        else if (z < sz - 1 && !boundaries[up] && (labels[up] == labels[iv])) {
+          locations.push_back(5);
+        }
+        else {
+        	if (labels[loc] > std::numeric_limits<T>::max() - 6) {
+          	locations.push_back(labels[loc] + 6);
+          }
+          else {
+          	printf("%lld %lld", labels[loc], std::numeric_limits<T>::max() - 6);
+          	throw std::runtime_error("compresso: Cannot encode labels within 6 units of integer overflow.");
+          }
+        }
+      }
     }
+  }
+
+  return locations;
 }
 
-uint64_t* Decompress(uint64_t *compressed_data) {
-    // constants
-    const int header_size = 9;
-
-    // get the resolution
-    const size_t sz = compressed_data[0];
-    const size_t sy = compressed_data[1];
-    const size_t sx = compressed_data[2];
-
-    // get the size of the vectors
-    const size_t ids_size = compressed_data[3];
-    const size_t values_size = compressed_data[4];
-    const size_t locations_size = compressed_data[5];
-
-    const size_t zstep = compressed_data[6];
-    const size_t ystep = compressed_data[7];
-    const size_t xstep = compressed_data[8];
-    
-    const size_t nzblocks = (sz + (zstep / 2)) / zstep;
-    const size_t nyblocks = (sy + (ystep / 2)) / ystep;
-    const size_t nxblocks = (sx + (xstep / 2)) / xstep;
-
-    // create an empty array for the encodings
-    size_t nblocks = nzblocks * nyblocks * nxblocks;
-
-    // allocate memory for all arrays
-    std::vector<uint64_t> *ids = new std::vector<uint64_t>();
-    std::vector<uint64_t> *values = new std::vector<uint64_t>();
-    std::vector<uint64_t> *locations = new std::vector<uint64_t>();
-    uint64_t *boundary_data = new uint64_t[nblocks]();
-
-    size_t iv = header_size;
-    for (size_t ix = 0; ix < ids_size; ++ix, ++iv) {
-        ids->push_back(compressed_data[iv]);
+template <typename T>
+std::vector<T> unique(const std::vector<T> &data) {
+	std::vector<T> values;
+  std::set<T> hash_map;
+  const size_t n_vals = data.size();
+  for (size_t iv = 0; iv < n_vals; iv++) {
+  	bool inserted = hash_map.insert(data[iv]).second;
+    if (inserted) {
+      values.push_back(data[iv]);
     }
-    for (size_t ix = 0; ix < values_size; ++ix, ++iv) {
-        values->push_back(compressed_data[iv]);
-    }
-    for (size_t ix = 0; ix < locations_size; ++ix, ++iv) {
-        locations->push_back(compressed_data[iv]);
-    }
-    for (size_t ix = 0; ix < nblocks; ++ix, ++iv) {
-        boundary_data[ix] = compressed_data[iv];
-    }
+  }
+  sort(values.begin(), values.end());
+  return values;
+}
 
-    bool *boundaries = DecodeBoundaries(boundary_data, values, sx, sy, sz, xstep, ystep, zstep);
+template <typename T>
+void renumber_boundary_data(const std::vector<T>& values, std::vector<T> &boundary_data) {
+  if (boundary_data.size() == 0) {
+  	return;
+  }
 
-    uint64_t *components = cc3d::connected_components2d(boundaries, sx, sy, sz);
-    uint64_t *decompressed_data = IDReverseMapping(components, ids, sx, sy, sz);
-    delete[] components;
+  std::unordered_map<T, T> mapping;
+  const size_t n_vals = values.size();
+  for (size_t iv = 0; iv < n_vals; iv++) {
+    mapping[values[iv]] = iv;
+  }
 
-    DecodeIndeterminateLocations(boundaries, decompressed_data, locations, sx, sy, sz);
+  const size_t n_data = boundary_data.size();
+  T last = boundary_data[0];
+  boundary_data[0] = mapping[boundary_data[0]];
+  T last_remap = boundary_data[0];
 
-    // free memory
-    delete[] boundaries;
-    delete[] boundary_data;
-    delete ids;
-    delete values;
-    delete locations;
+  for (size_t iv = 1; iv < n_data; iv++) {
+  	if (boundary_data[iv] == last) {
+  		boundary_data[iv] = last_remap;
+  		continue;
+  	}
 
-    return decompressed_data;
+  	last_remap = mapping[boundary_data[iv]];
+  	last = boundary_data[iv];
+    boundary_data[iv] = last_remap;
+  }
+}
+
+template <typename T>
+std::vector<T> run_length_encode_windows(const std::vector<T> &windows) {
+	std::vector<T> rle_windows;
+	rle_windows.reserve(windows.size() / 4);
+
+	bool zero_run = false;
+	size_t prev_zero = 0;
+
+	const size_t window_size = windows.size();
+	for (size_t i = 0; i < window_size; i++) {
+		if (windows[i] == 0) {
+			if (!zero_run) {
+				zero_run = true;
+				prev_zero = i;
+			}
+		}
+		else {
+			if (zero_run) {
+				rle_windows.push_back((i - prev_zero) * 2 + 1);
+				zero_run = false;
+			}
+			rle_windows.push_back(windows[i] * 2);
+		}
+	}
+
+	return rle_windows;
+}
+
+bool is_little_endian() {
+	int n = 1;
+	return (*(char *) & n == 1);
+}
+
+/* compress
+ *
+ * Convert 3D integer array data into a compresso encoded byte stream.
+ * Array is expected to be in Fortran order.
+ *
+ * Parameters:
+ *  data: pointer to 3D integer segmentation image 
+ *  sx, sy, sz: axial dimension sizes
+ *  xstep, ystep, zstep: (optional) picks the size of the 
+ *      compresso grid. 4x4x1 or 8x8x1 are acceptable sizes.
+ *
+ * Returns: vector<char>
+ */
+template <typename T>
+std::vector<unsigned char> compress(
+	T *labels, 
+	const size_t sx, const size_t sy, const size_t sz,
+	const size_t xstep = 8, const size_t ystep = 8, const size_t zstep = 1
+) {
+
+	if (xstep * ystep * zstep > 64) {
+		throw std::runtime_error("Unable to encode blocks larger than 64 voxels.");
+	}
+
+	const size_t sxy = sx * sy;
+	const size_t voxels = sx * sy * sz;
+
+	const size_t nx = (sz + (zstep / 2)) / zstep;
+	const size_t ny = (sy + (ystep / 2)) / ystep;
+	const size_t nz = (sx + (xstep / 2)) / xstep;
+
+	const size_t nblocks = nx * ny * nz;
+
+	bool *boundaries =  extract_boundaries<T>(labels, sx, sy, sz);
+	size_t num_components = 0;
+	uint32_t *components = cc3d::connected_components2d<uint32_t>(boundaries, sx, sy, sz, num_components);
+	
+	// Very similar to fastremap.component_map
+	std::vector<T> ids = component_map<T>(components, labels, sx, sy, sz, num_components);
+	delete[] components;
+
+	// for 4,4,1 we could use uint16_t
+	std::vector<uint64_t> windows = encode_boundaries<uint64_t>(boundaries, sx, sy, sz, xstep, ystep, zstep);
+	std::vector<T> locations = encode_indeterminate_locations<T>(boundaries, labels, sx, sy, sz);
+	delete[] boundaries;
+
+	std::vector<uint64_t> window_values = unique<uint64_t>(windows);
+	renumber_boundary_data(window_values, windows);
+	windows = run_length_encode_windows<uint64_t>(windows);
+
+	size_t num_out_bytes = (
+		CompressoHeader::header_size 
+		+ (ids.size() * sizeof(T))
+		+ (window_values.size() * sizeof(uint64_t))
+		+ (locations.size() * sizeof(T))
+		+ (nblocks * sizeof(uint64_t))
+	);
+	std::vector<unsigned char> compressed_data(num_out_bytes);
+
+	CompressoHeader header(
+		/*data_width=*/sizeof(T), 
+		/*sx=*/sx, /*sy=*/sy, /*sz=*/sz,
+		/*xstep=*/xstep, /*ystep=*/ystep, /*zstep=*/zstep,
+		/*id_size=*/ids.size(), 
+		/*value_size=*/window_values.size(), 
+		/*location_size=*/locations.size()
+	);
+	size_t idx = header.tochars(compressed_data, 0);
+	for (size_t i = 0 ; i < ids.size(); i++) {
+    idx += itoc(ids[i], compressed_data, idx);
+	}
+	for (size_t i = 0 ; i < window_values.size(); i++) {
+    idx += itoc(window_values[i], compressed_data, idx);
+	}
+	for (size_t i = 0 ; i < locations.size(); i++) {
+    idx += itoc(locations[i], compressed_data, idx);
+	}
+	for (size_t i = 0 ; i < nblocks; i++) {
+    idx += itoc(windows[i], compressed_data, idx);
+	}
+
+	return compressed_data;
+}
+
+};
+
+namespace pycompresso {
+
+template <typename T>
+std::vector<unsigned char> cpp_compress(
+	T *labels, 
+	const size_t sx, const size_t sy, const size_t sz,
+	const size_t xstep = 8, const size_t ystep = 8, const size_t zstep = 1
+) {
+
+	return compresso::compress<T>(labels, sx, sy, sz, xstep, ystep, zstep);
 }
 
 };

@@ -8,7 +8,7 @@
  * ----
  * LICENSE
  * 
- * This is a special reduced feature version of cc3d v1.14.0
+ * This is a special reduced feature version of cc3d 
  * that includes only the logic needed for CCL 4-connected.
  * cc3d is ordinarily licensed as GPL v3. Get the full
  * version of cc3d here: 
@@ -49,6 +49,8 @@
 #include <stdexcept>
 
 namespace cc3d {
+
+static size_t _dummy_N;
 
 template <typename T>
 class DisjointSet {
@@ -153,8 +155,14 @@ public:
 template <typename OUT = uint32_t>
 OUT* relabel(
     OUT* out_labels, const int64_t voxels,
-    const int64_t num_labels, DisjointSet<uint32_t> &equivalences
+    const int64_t num_labels, DisjointSet<uint32_t> &equivalences,
+    size_t &N = _dummy_N
   ) {
+
+  if (num_labels <= 1) {
+    N = num_labels;
+    return out_labels;
+  }
 
   OUT label;
   OUT* renumber = new OUT[num_labels + 1]();
@@ -173,8 +181,11 @@ OUT* relabel(
   }
 
   // Raster Scan 2: Write final labels based on equivalences
-  for (int64_t loc = 0; loc < voxels; loc++) {
-    out_labels[loc] = renumber[out_labels[loc]];
+  N = next_label - 1;
+  if (N < static_cast<size_t>(num_labels)) {
+    for (int64_t loc = 0; loc < voxels; loc++) {
+      out_labels[loc] = renumber[out_labels[loc]];
+    }
   }
 
   delete[] renumber;
@@ -186,14 +197,17 @@ template <typename T, typename OUT = uint32_t>
 OUT* connected_components2d_4(
     T* in_labels, 
     const int64_t sx, const int64_t sy, const int64_t sz,
-    size_t max_labels, OUT *out_labels = NULL
+    size_t max_labels, OUT *out_labels = NULL, 
+    size_t &N = _dummy_N
   ) {
 
   const int64_t sxy = sx * sy;
   const int64_t voxels = sx * sy * sz;
 
-  max_labels = std::max(std::min(max_labels, static_cast<size_t>(voxels)), static_cast<size_t>(1L)); // can't allocate 0 arrays
+  max_labels++;
+  max_labels = std::min(max_labels, static_cast<size_t>(voxels) + 1); // + 1L for an array with no zeros
   max_labels = std::min(max_labels, static_cast<size_t>(std::numeric_limits<OUT>::max()));
+
 
   DisjointSet<uint32_t> equivalences(max_labels);
 
@@ -251,23 +265,29 @@ OUT* connected_components2d_4(
     }
   }
 
-  return relabel<OUT>(out_labels, voxels, next_label, equivalences);
+  return relabel<OUT>(out_labels, voxels, next_label, equivalences, N);
 }
 
-uint64_t* connected_components2d(
-  bool* in_labels, const int64_t sx, const int64_t sy, const int64_t sz
+template <typename OUT = uint64_t>
+OUT* connected_components2d(
+  bool* in_labels, 
+  const int64_t sx, const int64_t sy, const int64_t sz,
+  size_t &N = _dummy_N
 ) {
 
   const int64_t sxy = sx * sy;
   const int64_t voxels = sxy * sz;
 
-  const size_t max_labels = (sx * sy + 2) / 2 * sz + 2;
-  uint64_t* out_labels = new uint64_t[voxels]();
+  const size_t max_labels = static_cast<size_t>((sxy + 2) / 2 * (sz + 2));
+  OUT* out_labels = new OUT[voxels]();
 
   for (int64_t z = 0; z < sz; z++) {
-    connected_components2d_4<bool, uint64_t>(
-      (in_labels + sxy * z), sx, sy, 1, max_labels, (out_labels + sxy * z)
+    size_t tmp_N = 0;
+    connected_components2d_4<bool, OUT>(
+      (in_labels + sxy * z), sx, sy, 1, 
+      max_labels, (out_labels + sxy * z), tmp_N
     );
+    N += tmp_N;
   }
 
   return out_labels;
