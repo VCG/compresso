@@ -301,11 +301,10 @@ std::vector<T> encode_indeterminate_locations(
           locations.push_back(5);
         }
         else {
-        	if (labels[loc] > std::numeric_limits<T>::max() - 6) {
+        	if (labels[loc] <= std::numeric_limits<T>::max() - 6) {
           	locations.push_back(labels[loc] + 6);
           }
           else {
-          	printf("%lld %lld", labels[loc], std::numeric_limits<T>::max() - 6);
           	throw std::runtime_error("compresso: Cannot encode labels within 6 units of integer overflow.");
           }
         }
