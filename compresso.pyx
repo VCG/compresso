@@ -126,6 +126,26 @@ def compress(cnp.ndarray[UINT, ndim=3] data, steps=(8,8,1)):
 
   return bytes(buf)
 
+def read_header(buf : bytes) -> dict:
+  """
+  Decodes the header 
+  """
+  toint = lambda n: int.from_bytes(n, byteorder="little", signed=False)
+  return {
+    "magic": buf[:4],
+    "format_version": buf[4],
+    "data_width": buf[5],
+    "sx": toint(buf[6:8]),
+    "sy": toint(buf[8:10]),
+    "sz": toint(buf[10:12]),
+    "xstep": buf[12],
+    "ystep": buf[13],
+    "zstep": buf[14],
+    "id_size": toint(buf[15:23]),
+    "value_size": toint(buf[23:27]),
+    "location_size": toint(buf[27:35]),
+  }
+
 # def decompress(data):
 #     """
 #     Decompress a compresso encoded byte stream into a three dimensional 
